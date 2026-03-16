@@ -1,8 +1,10 @@
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const app = express();
 const { initWebSockets } = require('./services/websocketService');
+const { initQueue } = require('./services/queueService');
 const connectMongo = require('./config/mongoConnect');
 const errorHandler = require("./middleware/errorHandler");
 const cookieParser = require("cookie-parser");
@@ -14,6 +16,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+// Serve uploaded material files statically
+app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
 // Connect to MongoDB
 connectMongo();
@@ -32,9 +37,14 @@ app.use("/departmentadmin/groups", require("./routes/departmentadmin/groups"));
 app.use("/departmentadmin/modules", require("./routes/departmentadmin/modules"));
 app.use("/departmentadmin/teachers", require("./routes/departmentadmin/teachers"));
 
-// Protected Routes - Teacher
+// Protected Routes - Teacher (existing)
 app.use("/teacher/modules", require("./routes/teacher/modules"));
 app.use("/teacher/exams", require("./routes/teacher/exams"));
+
+// Protected Routes - Teacher (AI Exam Generation Workflow)
+app.use("/teacher/materials", require("./routes/teacher/materials"));
+app.use("/teacher/blueprints", require("./routes/teacher/blueprints"));
+app.use("/teacher/ai-exams", require("./routes/teacher/aiExams"));
 
 // Protected Routes - Student
 app.use("/student/exams", require("./routes/student/exams"));
@@ -47,5 +57,8 @@ const server = http.createServer(app);
 
 // Initialize WebSockets
 initWebSockets(server);
+
+// Initialize async exam generation queue (Redis-backed, graceful fallback)
+initQueue();
 
 server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

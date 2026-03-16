@@ -10,6 +10,13 @@ import CreateExam from './pages/teacher/CreateExam.jsx'
 import Dashboard from './pages/teacher/Dashboard.jsx'
 import ModulesList from './pages/teacher/ModulesList.jsx'
 import ModuleDetails from './pages/teacher/ModuleDetails.jsx'
+// AI Exam Generation Workflow
+import MaterialManager from './pages/teacher/MaterialManager.jsx'
+import MindmapViewer from './pages/teacher/MindmapViewer.jsx'
+import BlueprintBuilder from './pages/teacher/BlueprintBuilder.jsx'
+import AIExamGenerator from './pages/teacher/AIExamGenerator.jsx'
+import AIExamReview from './pages/teacher/AIExamReview.jsx'
+import PublishedExams from './pages/teacher/PublishedExams.jsx'
 import SuperAdminDashboard from './pages/superadmin/Dashboard.jsx'
 import SuperAdminUsers from './pages/superadmin/Users.jsx'
 import SuperAdminDepartments from './pages/superadmin/Departments.jsx'
@@ -31,6 +38,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
              <Route path="teacher/modules" element={<ModulesList />} />
              <Route path="teacher/modules/:moduleId" element={<ModuleDetails />} />
              <Route path="teacher/create-exam" element={<CreateExam />} />
+             {/* AI Exam Generation Workflow */}
+             <Route path="teacher/materials" element={<MaterialManager />} />
+             <Route path="teacher/materials/:materialId/mindmap" element={<MindmapViewer />} />
+             <Route path="teacher/blueprint-builder" element={<BlueprintBuilder />} />
+             <Route path="teacher/ai-exam-generator" element={<AIExamGenerator />} />
+             <Route path="teacher/ai-exam-review/:examId" element={<AIExamReview />} />
+             <Route path="teacher/published-exams" element={<PublishedExams />} />
              <Route path="superadmin/dashboard" element={<SuperAdminDashboard />} />
              <Route path="superadmin/users" element={<SuperAdminUsers />} />
              <Route path="superadmin/departments" element={<SuperAdminDepartments />} />
