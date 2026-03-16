@@ -8,5 +8,8 @@ router.use(verifyJWT);
 router.get('/', examController.getTeacherExams);
 router.post('/', examController.createExam);
 router.post('/:id/publish', examController.publishExam);
+router.post('/:id/unpublish', examController.unpublishExam);
+router.get('/:id', examController.getExamDetails);
+router.put('/:id/groups', examController.updateExamGroups);
 
 module.exports = router;

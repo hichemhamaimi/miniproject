@@ -53,7 +53,7 @@ const CreateExam = () => {
             module_id: preselectedModuleId,
             duration_minutes: 60,
             scoringDefaults: { correct: 1, incorrect: -0.5, unanswered: 0 },
-            questions: [getDefaultQuestion('single_choice')]
+            questions: []
         }
     });
 
@@ -111,6 +111,11 @@ const CreateExam = () => {
                 return formatted;
             });
 
+            if (formattedQuestions.length === 0) {
+                setStatusMessage({ type: 'error', text: 'You must add at least one question to the exam.' });
+                return;
+            }
+
             const payload = {
                 title: data.title,
                 module_id: parseInt(data.module_id) || null,
@@ -130,6 +135,46 @@ const CreateExam = () => {
             setTimeout(() => navigate('/teacher/dashboard'), 2000);
         } catch (error) {
             setStatusMessage({ type: 'error', text: error.response?.data?.message || 'Failed to publish exam.' });
+        }
+    };
+
+    // Helper functions for dynamic array manipulation
+    const handleAddOption = (index, type) => {
+        let currentOptions = watch(`questions.${index}.options`) || [];
+        setValue(`questions.${index}.options`, [...currentOptions, '']);
+    };
+
+    const handleRemoveOption = (index, optIdx) => {
+        let currentOptions = watch(`questions.${index}.options`) || [];
+        if (currentOptions.length > 2) {
+            const newOptions = currentOptions.filter((_, i) => i !== optIdx);
+            setValue(`questions.${index}.options`, newOptions);
+        }
+    };
+
+    const handleAddPair = (index) => {
+        let currentPairs = watch(`questions.${index}.matchingPairs`) || [];
+        setValue(`questions.${index}.matchingPairs`, [...currentPairs, { left: '', right: '' }]);
+    };
+
+    const handleRemovePair = (index, pairIdx) => {
+        let currentPairs = watch(`questions.${index}.matchingPairs`) || [];
+        if (currentPairs.length > 2) {
+            const newPairs = currentPairs.filter((_, i) => i !== pairIdx);
+            setValue(`questions.${index}.matchingPairs`, newPairs);
+        }
+    };
+
+    const handleAddOrderedItem = (index) => {
+        let currentItems = watch(`questions.${index}.orderedItems`) || [];
+        setValue(`questions.${index}.orderedItems`, [...currentItems, '']);
+    };
+
+    const handleRemoveOrderedItem = (index, itemIdx) => {
+        let currentItems = watch(`questions.${index}.orderedItems`) || [];
+        if (currentItems.length > 2) {
+            const newItems = currentItems.filter((_, i) => i !== itemIdx);
+            setValue(`questions.${index}.orderedItems`, newItems);
         }
     };
 
@@ -212,11 +257,9 @@ const CreateExam = () => {
 
                         return (
                             <div key={field.id} className="bg-white p-8 rounded-3xl shadow-lg border border-slate-200 relative transform transition-all hover:-translate-y-1">
-                                {fields.length > 1 && (
-                                    <button type="button" onClick={() => remove(index)} className="absolute top-6 right-6 text-slate-400 hover:text-red-500 bg-slate-100 hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center transition" title="Remove Question">
-                                        <FaTrash />
-                                    </button>
-                                )}
+                                <button type="button" onClick={() => remove(index)} className="absolute top-6 right-6 text-slate-400 hover:text-red-500 bg-slate-100 hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center transition" title="Remove Question">
+                                    <FaTrash />
+                                </button>
                                 
                                 <div className="flex items-center gap-4 mb-6">
                                     <span className="flex items-center justify-center w-10 h-10 bg-indigo-600 text-white font-bold rounded-full">{index + 1}</span>
@@ -239,32 +282,50 @@ const CreateExam = () => {
 
                                     {/* Type Specific Rendering */}
                                     <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
-                                        {(qType === 'single_choice' || qType === 'negative_qcm') && (
+                                        {(qType === 'single_choice' || qType === 'negative_qcm') && (() => {
+                                            const options = watch(`questions.${index}.options`) || [];
+                                            return (
                                             <div className="space-y-3">
                                                 <label className="block text-sm font-bold text-slate-700 mb-2">Options (Select the correct one)</label>
-                                                {[0, 1, 2, 3].map(optIdx => (
+                                                {options.map((opt, optIdx) => (
                                                     <div key={optIdx} className="flex items-center gap-3">
                                                         <input type="radio" value={optIdx} {...register(`questions.${index}.correctAnswers.0`)} className="w-5 h-5 text-indigo-600 focus:ring-indigo-500" defaultChecked={optIdx === 0} />
                                                         <input type="text" placeholder={`Option ${optIdx + 1}`} className="flex-1 bg-white border border-slate-300 rounded-lg py-2 px-3 focus:ring-indigo-500" {...register(`questions.${index}.options.${optIdx}`)} />
+                                                        {options.length > 2 && (
+                                                            <button type="button" onClick={() => handleRemoveOption(index, optIdx)} className="text-red-500 hover:text-red-700 p-2"><FaTrash /></button>
+                                                        )}
                                                     </div>
                                                 ))}
+                                                <button type="button" onClick={() => handleAddOption(index, qType)} className="mt-2 text-sm text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-1">
+                                                    <FaPlus /> Add Option
+                                                </button>
                                             </div>
-                                        )}
+                                            );
+                                        })()}
 
-                                        {qType === 'multiple_choice' && (
+                                        {qType === 'multiple_choice' && (() => {
+                                            const options = watch(`questions.${index}.options`) || [];
+                                            return (
                                             <div className="space-y-3">
                                                 <label className="block text-sm font-bold text-slate-700 mb-2">Options (Check all valid correct answers)</label>
-                                                {[0, 1, 2, 3, 4].map(optIdx => {
+                                                {options.map((opt, optIdx) => {
                                                     const optVal = watch(`questions.${index}.options.${optIdx}`); // Watch option string
                                                     return (
                                                         <div key={optIdx} className="flex items-center gap-3">
                                                             <input type="checkbox" value={optVal || ''} {...register(`questions.${index}.correctAnswers`)} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500" />
                                                             <input type="text" placeholder={`Option ${optIdx + 1}`} className="flex-1 bg-white border border-slate-300 rounded-lg py-2 px-3 focus:ring-indigo-500" {...register(`questions.${index}.options.${optIdx}`)} />
+                                                            {options.length > 2 && (
+                                                                <button type="button" onClick={() => handleRemoveOption(index, optIdx)} className="text-red-500 hover:text-red-700 p-2"><FaTrash /></button>
+                                                            )}
                                                         </div>
                                                     );
                                                 })}
+                                                <button type="button" onClick={() => handleAddOption(index, qType)} className="mt-2 text-sm text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-1">
+                                                    <FaPlus /> Add Option
+                                                </button>
                                             </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {qType === 'true_false' && (
                                             <div className="space-y-4">
@@ -276,30 +337,48 @@ const CreateExam = () => {
                                             </div>
                                         )}
 
-                                        {qType === 'matching' && (
+                                        {qType === 'matching' && (() => {
+                                            const pairs = watch(`questions.${index}.matchingPairs`) || [];
+                                            return (
                                             <div className="space-y-4">
                                                 <label className="block text-sm font-bold text-slate-700 mb-2">Matching Pairs</label>
-                                                {[0, 1, 2, 3].map(pairIdx => (
+                                                {pairs.map((pair, pairIdx) => (
                                                     <div key={pairIdx} className="flex gap-4 items-center">
                                                         <input type="text" placeholder="Left Side Item" className="flex-1 border-slate-300 rounded-lg p-2" {...register(`questions.${index}.matchingPairs.${pairIdx}.left`)} />
                                                         <span className="text-slate-400 font-bold">=</span>
                                                         <input type="text" placeholder="Right Side Match" className="flex-1 border-slate-300 rounded-lg p-2" {...register(`questions.${index}.matchingPairs.${pairIdx}.right`)} />
+                                                        {pairs.length > 2 && (
+                                                            <button type="button" onClick={() => handleRemovePair(index, pairIdx)} className="text-red-500 hover:text-red-700 p-2"><FaTrash /></button>
+                                                        )}
                                                     </div>
                                                 ))}
+                                                <button type="button" onClick={() => handleAddPair(index)} className="mt-2 text-sm text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-1">
+                                                    <FaPlus /> Add Pair
+                                                </button>
                                             </div>
-                                        )}
+                                            );
+                                        })()}
 
-                                        {qType === 'ordering' && (
+                                        {qType === 'ordering' && (() => {
+                                            const items = watch(`questions.${index}.orderedItems`) || [];
+                                            return (
                                             <div className="space-y-3">
                                                 <label className="block text-sm font-bold text-slate-700 mb-2">Ordered Items (Enter in CORRECT order)</label>
-                                                {[0, 1, 2, 3].map(orderIdx => (
+                                                {items.map((item, orderIdx) => (
                                                     <div key={orderIdx} className="flex items-center gap-4">
                                                         <span className="w-8 flex justify-center text-slate-400 font-bold">{orderIdx + 1}.</span>
                                                         <input type="text" placeholder={`Item ${orderIdx + 1}`} className="flex-1 border-slate-300 rounded-lg p-2" {...register(`questions.${index}.orderedItems.${orderIdx}`)} />
+                                                        {items.length > 2 && (
+                                                            <button type="button" onClick={() => handleRemoveOrderedItem(index, orderIdx)} className="text-red-500 hover:text-red-700 p-2"><FaTrash /></button>
+                                                        )}
                                                     </div>
                                                 ))}
+                                                <button type="button" onClick={() => handleAddOrderedItem(index)} className="mt-2 text-sm text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-1">
+                                                    <FaPlus /> Add Item
+                                                </button>
                                             </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
 
                                     {/* Scoring Override Config per Question */}

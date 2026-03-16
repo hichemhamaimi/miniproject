@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import PublishExamModal from '../../components/teacher/PublishExamModal';
+import ExamDetailsModal from '../../components/teacher/ExamDetailsModal';
+import EditExamGroupsModal from '../../components/teacher/EditExamGroupsModal';
 
 const ModuleDetails = () => {
     const { moduleId } = useParams();
@@ -12,6 +14,10 @@ const ModuleDetails = () => {
     const [error, setError] = useState('');
     const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
     const [selectedExamToPublish, setSelectedExamToPublish] = useState(null);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [selectedExamForDetails, setSelectedExamForDetails] = useState(null);
+    const [isEditGroupsModalOpen, setIsEditGroupsModalOpen] = useState(false);
+    const [selectedExamForEditGroups, setSelectedExamForEditGroups] = useState(null);
 
     const fetchModuleData = async () => {
         try {
@@ -41,6 +47,29 @@ const ModuleDetails = () => {
     const openPublishModal = (exam) => {
         setSelectedExamToPublish(exam);
         setIsPublishModalOpen(true);
+    };
+
+    const openDetailsModal = (exam) => {
+        setSelectedExamForDetails(exam);
+        setIsDetailsModalOpen(true);
+    };
+
+    const openEditGroupsModal = (exam) => {
+        setSelectedExamForEditGroups(exam);
+        setIsEditGroupsModalOpen(true);
+    };
+
+    const handleUnpublish = async (examId) => {
+        if (!window.confirm("Are you sure you want to unpublish this exam? It will become unavailable to students immediately.")) {
+            return;
+        }
+        try {
+            await axiosInstance.post(`/teacher/exams/${examId}/unpublish`);
+            fetchModuleData();
+        } catch (err) {
+            console.error("Error unpublishing exam:", err);
+            alert("Failed to unpublish exam. " + (err.response?.data?.message || ''));
+        }
     };
 
     if (loading) {
@@ -180,7 +209,26 @@ const ModuleDetails = () => {
                                                             Publish
                                                         </button>
                                                     )}
-                                                    <button className="text-indigo-600 hover:text-indigo-900 text-sm font-medium px-3 py-1 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition">
+                                                    {exam.status === 'LIVE' && (
+                                                        <>
+                                                            <button 
+                                                                onClick={() => openEditGroupsModal(exam)}
+                                                                className="text-white text-sm font-medium px-3 py-1 bg-blue-500 rounded-lg hover:bg-blue-600 transition shadow-sm"
+                                                            >
+                                                                Edit Groups
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleUnpublish(exam.id)}
+                                                                className="text-white text-sm font-medium px-3 py-1 bg-amber-500 rounded-lg hover:bg-amber-600 transition shadow-sm"
+                                                            >
+                                                                Unpublish
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => openDetailsModal(exam)}
+                                                        className="text-indigo-600 hover:text-indigo-900 text-sm font-medium px-3 py-1 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition"
+                                                    >
                                                         View Details
                                                     </button>
                                                 </td>
@@ -209,6 +257,20 @@ const ModuleDetails = () => {
                 availableGroups={moduleGroups}
                 onClose={() => setIsPublishModalOpen(false)}
                 onPublishSuccess={fetchModuleData}
+            />
+
+            <ExamDetailsModal 
+                isOpen={isDetailsModalOpen}
+                examId={selectedExamForDetails?.id}
+                onClose={() => setIsDetailsModalOpen(false)}
+            />
+
+            <EditExamGroupsModal
+                isOpen={isEditGroupsModalOpen}
+                exam={selectedExamForEditGroups}
+                availableGroups={moduleGroups}
+                onClose={() => setIsEditGroupsModalOpen(false)}
+                onSuccess={fetchModuleData}
             />
         </div>
     );

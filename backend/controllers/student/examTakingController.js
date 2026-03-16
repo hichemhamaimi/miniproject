@@ -38,7 +38,7 @@ const enterExam = async (req, res) => {
 
         // 1. Verify Exam is LIVE and student is eligible
         const checkQuery = `
-            SELECT e.id, e.duration_minutes 
+            SELECT e.id, e.title, e.duration_minutes 
             FROM exams e
             JOIN exam_groups eg ON e.id = eg.exam_id
             JOIN students st ON eg.group_id = st.group_id
@@ -50,7 +50,7 @@ const enterExam = async (req, res) => {
             return res.status(403).json({ message: "Exam is not available or you are not authorized." });
         }
         
-        const duration_minutes = examResults[0].duration_minutes;
+        const { title, duration_minutes } = examResults[0];
 
         // 2. Check existing session
         const [sessionResults] = await connection.query(
@@ -92,7 +92,7 @@ const enterExam = async (req, res) => {
 
         res.status(200).json({
             examId: id,
-            title: mongoExam.title,
+            title: title,
             duration_minutes: duration_minutes,
             session_start_time: session.start_time,
             examData: {

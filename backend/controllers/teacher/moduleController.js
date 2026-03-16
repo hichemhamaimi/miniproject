@@ -66,7 +66,7 @@ const getModuleStudents = async (req, res) => {
         // Query students taking this module
         // A module -> group_id -> students mapping
         const query = `
-            SELECT u.id, u.name, u.lastname, u.username, sg.name as group_name, sg.year 
+            SELECT u.id, u.name, u.lastname, u.username, sg.id as group_id, sg.name as group_name, sg.year 
             FROM users u
             JOIN students s ON u.id = s.id
             JOIN student_groups sg ON s.group_id = sg.id
