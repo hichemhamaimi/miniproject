@@ -36,4 +36,14 @@ module.exports = {
     storage: {
         materialsBasePath: 'storage/materials',
     },
+
+    embedding: {
+        model: 'Xenova/all-MiniLM-L6-v2',
+        batchSize: 16
+    },
+
+    vectorDB: {
+        host: 'http://localhost:6333',
+        collection: 'materials'
+    }
 };

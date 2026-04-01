@@ -30,3 +30,33 @@
 [2026-03-12T07:39:01.307Z] publishExam insert success : {
   "exam_id": "4"
 }
+[2026-03-31T23:34:35.719Z] publishExam received groupIds : [
+  1
+]
+[2026-03-31T23:34:35.723Z] publishExam validGroupIds : [
+  1
+]
+[2026-03-31T23:34:35.724Z] publishExam inserting values : [
+  [
+    "5",
+    1
+  ]
+]
+[2026-03-31T23:34:35.727Z] publishExam insert success : {
+  "exam_id": "5"
+}
+[2026-04-01T00:54:46.670Z] publishExam received groupIds : [
+  1
+]
+[2026-04-01T00:54:46.677Z] publishExam validGroupIds : [
+  1
+]
+[2026-04-01T00:54:46.679Z] publishExam inserting values : [
+  [
+    "6",
+    1
+  ]
+]
+[2026-04-01T00:54:46.690Z] publishExam insert success : {
+  "exam_id": "6"
+}

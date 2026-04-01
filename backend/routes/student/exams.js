@@ -9,6 +9,9 @@ router.use(verifyJWT);
 // Get available exams for the logged in student
 router.get('/', examTakingController.getAvailableExams);
 
+// Download SEB File
+router.get('/:id/seb', examTakingController.downloadSebFile);
+
 // Enter exam room (Applies SEB validation)
 router.post('/:id/start', verifySEB, examTakingController.enterExam);
 

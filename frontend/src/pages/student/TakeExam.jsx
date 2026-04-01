@@ -53,7 +53,7 @@ const TakeExam = () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
             }
-            navigate('/student/dashboard');
+            navigate('/student/dashboard?seb_quit=true');
         } catch (err) {
             console.error("Submission failed", err);
             // Even if it fails, if it's auto-submit, we probably shouldn't let them keep editing
@@ -78,9 +78,9 @@ const TakeExam = () => {
                 const initialAnswers = {};
                 examData.questions.forEach(q => {
                     if (q.type === 'ordering') {
-                        initialAnswers[q.id] = [...q.orderedItems].sort(() => Math.random() - 0.5);
+                        initialAnswers[q.id] = [...(q.orderedItems || [])].sort(() => Math.random() - 0.5);
                     } else if (q.type === 'matching') {
-                        initialAnswers[q.id] = q.matchingPairs.map(p => ({ left: p.left, right: '' }));
+                        initialAnswers[q.id] = (q.matchingPairs || []).map(p => ({ left: p.left || '', right: '' }));
                     } else if (q.type === 'multiple_choice') {
                         initialAnswers[q.id] = [];
                     }
@@ -90,7 +90,7 @@ const TakeExam = () => {
                 setLoading(false);
 
                 // --- INITIALIZE WEBSOCKET FOR TIMER ---
-                socketRef.current = io(process.env.REACT_APP_API_URL || 'http://localhost:3500');
+                socketRef.current = io(import.meta.env.VITE_API_URL || 'http://localhost:3500');
                 
                 socketRef.current.on('connect', () => {
                     // Join the exam session room
@@ -127,7 +127,8 @@ const TakeExam = () => {
                 if (err.response?.data?.code === 'SEB_REQUIRED') {
                     setIsSEBBlocked(true);
                 } else {
-                    setError(err.response?.data?.message || 'Failed to connect to exam session.');
+                    const fallbackError = err.response?.data?.message || err.response?.data?.error || err.toString();
+                    setError(`Failed to connect to exam session. Details: ${fallbackError}`);
                 }
                 setLoading(false);
             }
@@ -230,7 +231,7 @@ const TakeExam = () => {
                         <div className="ml-12">
                             {(q.type === 'single_choice' || q.type === 'negative_qcm') && (
                                 <div className="space-y-3">
-                                    {q.options.map((opt, i) => (
+                                    {(q.options || []).map((opt, i) => (
                                         <label key={i} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition">
                                             <input 
                                                 type="radio" name={`q_${q.id}`} value={opt} checked={answers[q.id] === opt}
@@ -245,10 +246,10 @@ const TakeExam = () => {
 
                             {q.type === 'multiple_choice' && (
                                 <div className="space-y-3">
-                                    {q.options.map((opt, i) => (
+                                    {(q.options || []).map((opt, i) => (
                                         <label key={i} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition">
                                             <input 
-                                                type="checkbox" value={opt} checked={answers[q.id]?.includes(opt) || false}
+                                                type="checkbox" value={opt} checked={(answers[q.id] || []).includes(opt)}
                                                 onChange={(e) => handleMultipleChoiceChange(q.id, opt, e.target.checked)}
                                                 className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
                                             />
@@ -275,17 +276,17 @@ const TakeExam = () => {
 
                             {q.type === 'matching' && (
                                 <div className="space-y-4">
-                                    {q.matchingPairs.map((pair, i) => (
+                                    {(q.matchingPairs || []).map((pair, i) => (
                                         <div key={i} className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50">
                                             <div className="flex-1 font-semibold text-slate-700">{pair.left}</div>
                                             <div className="flex-shrink-0 text-slate-400 font-bold hidden md:block">➔</div>
                                             <select 
                                                 className="flex-1 bg-white border border-slate-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500"
-                                                value={answers[q.id]?.find(p => p.left === pair.left)?.right || ''}
+                                                value={(answers[q.id] || []).find(p => p.left === pair.left)?.right || ''}
                                                 onChange={(e) => handleMatchingChange(q.id, pair.left, e.target.value)}
                                             >
                                                 <option value="">-- Match with... --</option>
-                                                {[...q.matchingPairs].sort((a,b) => a.right.localeCompare(b.right)).map((p, ri) => (
+                                                {[...(q.matchingPairs || [])].sort((a,b) => (a.right || '').localeCompare(b.right || '')).map((p, ri) => (
                                                     <option key={ri} value={p.right}>{p.right}</option>
                                                 ))}
                                             </select>

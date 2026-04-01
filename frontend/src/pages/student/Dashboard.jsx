@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
-import { FaPlayCircle, FaCheckCircle, FaClock } from 'react-icons/fa';
+import { FaPlayCircle, FaCheckCircle, FaClock, FaDownload } from 'react-icons/fa';
 
 const Dashboard = () => {
     const { user } = useAuth();
@@ -43,6 +43,34 @@ const Dashboard = () => {
         }
     };
 
+    const handleDownloadSeb = async (exam) => {
+        try {
+            const response = await axiosInstance.get(`/student/exams/${exam.id}/seb`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            
+            let filename = `${exam.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.seb`;
+            const contentDisposition = response.headers['content-disposition'];
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                if (filenameMatch && filenameMatch.length === 2) {
+                    filename = filenameMatch[1];
+                }
+            }
+            
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error("Error downloading SEB file", err);
+            alert("Failed to download SEB file.");
+        }
+    };
+
     return (
         <div className="space-y-6">
             <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center">
@@ -70,6 +98,11 @@ const Dashboard = () => {
                             const isSubmitted = exam.attempt_status === 'SUBMITTED' || exam.attempt_status === 'EXPIRED';
                             const isOngoing = exam.attempt_status === 'ONGOING';
                             
+                            const now = new Date();
+                            const hasStarted = !exam.start_time || new Date(exam.start_time) <= now;
+                            const hasEnded = exam.end_time && new Date(exam.end_time) < now;
+                            const isAvailable = hasStarted && !hasEnded;
+
                             return (
                                 <div key={exam.id} className={`bg-white rounded-2xl border shadow-sm p-6 transition-all ${
                                     isSubmitted ? 'border-gray-200 opacity-75' : 'border-indigo-100 hover:border-indigo-300 hover:shadow-md'
@@ -98,25 +131,45 @@ const Dashboard = () => {
 
                                     <div className="flex items-center">
                                         {isSubmitted ? (
-                                            <span className="px-4 py-2 bg-gray-100 text-gray-600 font-medium rounded-xl text-sm">
+                                            <span className="px-4 py-2 bg-gray-100 text-gray-600 font-medium rounded-xl text-sm w-full text-center">
                                                 Already Submitted
                                             </span>
-                                        ) : isOngoing ? (
-                                            <button 
-                                                onClick={() => navigate(`/student/exams/${exam.id}`)}
-                                                className="flex-1 flex justify-center items-center space-x-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors"
-                                            >
-                                                <FaPlayCircle />
-                                                <span>Resume Exam (Ongoing)</span>
-                                            </button>
+                                        ) : !hasStarted ? (
+                                            <span className="px-4 py-2 bg-gray-100 text-gray-600 font-medium rounded-xl text-sm w-full text-center">
+                                                Exam has not started yet
+                                            </span>
+                                        ) : hasEnded ? (
+                                            <span className="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-xl text-sm w-full text-center">
+                                                Exam has ended
+                                            </span>
                                         ) : (
-                                            <button 
-                                                onClick={() => handleEnterExam(exam)}
-                                                className="flex-1 flex justify-center items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition-colors"
-                                            >
-                                                <FaPlayCircle />
-                                                <span>Start Exam</span>
-                                            </button>
+                                            <div className="flex flex-1 space-x-3">
+                                                <button 
+                                                    onClick={() => handleDownloadSeb(exam)}
+                                                    className="flex justify-center items-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors border border-slate-200"
+                                                    title="Download SEB Configuration"
+                                                >
+                                                    <FaDownload />
+                                                    <span className="hidden sm:inline">SEB File</span>
+                                                </button>
+                                                {isOngoing ? (
+                                                    <button 
+                                                        onClick={() => navigate(`/student/exams/${exam.id}`)}
+                                                        className="flex-1 flex justify-center items-center space-x-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors"
+                                                    >
+                                                        <FaPlayCircle />
+                                                        <span>Resume Exam</span>
+                                                    </button>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => handleEnterExam(exam)}
+                                                        className="flex-1 flex justify-center items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition-colors"
+                                                    >
+                                                        <FaPlayCircle />
+                                                        <span>Start Exam</span>
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>

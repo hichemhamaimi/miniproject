@@ -1,6 +1,7 @@
 const Material = require('../../models/Material');
 const MaterialMindmap = require('../../models/MaterialMindmap');
 const { generateMindmap } = require('../../services/llmService');
+const vectorService = require('../../services/vectorService');
 
 // POST /teacher/materials/:id/mindmap
 const createMindmap = async (req, res) => {
@@ -12,11 +13,12 @@ const createMindmap = async (req, res) => {
             return res.status(400).json({ message: 'Material is not ready yet. Please wait for parsing to complete.' });
         }
 
-        if (material.chunks.length === 0) {
+        const chunks = await vectorService.getChunksByMaterialId(material._id.toString());
+        if (chunks.length === 0) {
             return res.status(400).json({ message: 'Material has no parsed chunks to generate a mindmap from.' });
         }
 
-        const mindmapData = await generateMindmap(material.title, material.chunks);
+        const mindmapData = await generateMindmap(material.title, chunks);
 
         // Upsert: replace existing mindmap for this material
         const mindmap = await MaterialMindmap.findOneAndUpdate(

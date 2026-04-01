@@ -60,23 +60,30 @@ const extractText = async (filePath, fileType) => {
     const ext = fileType.toLowerCase();
 
     if (ext === 'txt' || ext === 'md') {
+        console.log("parsed txt/md")
         return fs.readFileSync(filePath, 'utf-8');
     }
 
     if (ext === 'pdf') {
+                console.log("parsed pdf")
         const pdfParse = require('pdf-parse');
         const dataBuffer = fs.readFileSync(filePath);
         const data = await pdfParse(dataBuffer);
+
         return data.text;
     }
 
     if (ext === 'docx') {
+                console.log("parsed docx")
         const mammoth = require('mammoth');
         const result = await mammoth.extractRawText({ path: filePath });
+
         return result.value;
     }
 
     if (ext === 'pptx') {
+        
+        console.log("parsed pptx")
         const officeParser = require('officeparser');
         return new Promise((resolve, reject) => {
             officeParser.parseOffice(filePath, (data, err) => {
@@ -104,13 +111,15 @@ const parseMaterial = async (materialId, filePath, fileType) => {
 
         const rawText = await extractText(filePath, fileType);
         const cleaned = cleanText(rawText);
-        const chunks = splitIntoChunks(cleaned);
 
         await Material.findByIdAndUpdate(materialId, {
             parsedText: cleaned,
-            chunks,
-            status: 'ready'
+            status: 'embedding'
         });
+
+        // Delegate to embedding worker
+        const { enqueueMaterialProcessing } = require('./queueService');
+        await enqueueMaterialProcessing(materialId);
     } catch (err) {
         await Material.findByIdAndUpdate(materialId, {
             status: 'error',

@@ -25,7 +25,7 @@ const ConceptNode = ({ node, depth = 0, selected, onToggle }) => {
                 <input
                     type="checkbox"
                     checked={isSelected}
-                    onChange={() => onToggle(node.name)}
+                    onChange={(e) => onToggle(node, e.target.checked)}
                     className="w-4 h-4 rounded accent-violet-600 cursor-pointer flex-shrink-0"
                 />
                 <span className={`text-sm font-medium select-none ${isSelected ? 'text-violet-800 font-semibold' : 'text-slate-700'}`}>
@@ -69,10 +69,15 @@ const MindmapViewer = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const handleToggle = (name) => {
+    const handleToggle = (node, isSelected) => {
         setSelected(prev => {
             const next = new Set(prev);
-            next.has(name) ? next.delete(name) : next.add(name);
+            const collect = (n) => {
+                if (isSelected) next.add(n.name);
+                else next.delete(n.name);
+                if (n.children) n.children.forEach(collect);
+            };
+            collect(node);
             return next;
         });
     };
