@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
-import { FaPlus, FaTrash, FaCogs } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaCogs, FaRobot, FaUpload, FaFileAlt, FaCheck, FaSave } from 'react-icons/fa';
 
 const QUESTION_TYPES = [
     { value: 'single_choice', label: 'Single Choice' },
@@ -46,6 +46,16 @@ const CreateExam = () => {
     const navigate = useNavigate();
     const [statusMessage, setStatusMessage] = useState(null);
     const [modules, setModules] = useState([]);
+
+    // IA Generation State
+    const [aiProvider, setAiProvider] = useState('gemini');
+    const [aiTab, setAiTab] = useState('text');
+    const [aiText, setAiText] = useState('');
+    const [aiFile, setAiFile] = useState(null);
+    const [aiNbQuestions, setAiNbQuestions] = useState(10);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiGeneratedQuestions, setAiGeneratedQuestions] = useState([]);
+    const [aiError, setAiError] = useState(null);
 
     const { register, control, handleSubmit, formState: { errors, isSubmitting }, setValue, watch } = useForm({
         defaultValues: {
@@ -176,6 +186,96 @@ const CreateExam = () => {
             const newItems = currentItems.filter((_, i) => i !== itemIdx);
             setValue(`questions.${index}.orderedItems`, newItems);
         }
+    };
+
+    const handleAiGenerate = async () => {
+        setAiError(null);
+        if (aiTab === 'text' && !aiText.trim()) return setAiError("Veuillez saisir du texte.");
+        if (aiTab === 'pdf' && !aiFile) return setAiError("Veuillez sélectionner un fichier PDF.");
+
+        setAiLoading(true);
+        setAiGeneratedQuestions([]);
+
+        try {
+            let response;
+            const token = localStorage.getItem('token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+
+            if (aiTab === 'text') {
+                response = await fetch('http://localhost:3500/teacher/qcm/generate-from-text', {
+                    method: 'POST',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        text: aiText, 
+                        nb_questions: aiNbQuestions, 
+                        llm_provider: aiProvider 
+                    })
+                });
+            } else {
+                const formData = new FormData();
+                formData.append('document', aiFile);
+                formData.append('nb_questions', aiNbQuestions);
+                formData.append('llm_provider', aiProvider);
+
+                response = await fetch('http://localhost:3500/teacher/qcm/generate-from-pdf', {
+                    method: 'POST',
+                    headers,
+                    body: formData
+                });
+            }
+
+            const data = await response.json();
+            if (!response.ok) {
+                const errorDetail = data.message || data.error || response.statusText;
+                throw new Error(`[Erreur HTTP ${response.status}] ${errorDetail}`);
+            }
+
+            setAiGeneratedQuestions(data.data);
+        } catch (err) {
+            setAiError(err.message);
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    const handleAddAiQuestionsToExam = () => {
+        aiGeneratedQuestions.forEach((q) => {
+            append({
+                id: generateId(),
+                type: 'single_choice',
+                text: q.question_text || q.question,
+                explanation: '',
+                scoringOverride: { active: false, correct: 1, incorrect: -0.5, unanswered: 0 },
+                options: [
+                    q.option_a || q.options?.A || 'Option A',
+                    q.option_b || q.options?.B || 'Option B',
+                    q.option_c || q.options?.C || 'Option C',
+                    q.option_d || q.options?.D || 'Option D',
+                ],
+                // We bind correctAnswers as an array containing the literal correct option text
+                // Since CreateExam binds the radio value to the index, we map the correct letter to the index
+                correctAnswers: [
+                    (q.correct_option || q.correct) === 'A' ? '0' :
+                    (q.correct_option || q.correct) === 'B' ? '1' :
+                    (q.correct_option || q.correct) === 'C' ? '2' : '3'
+                ]
+            });
+        });
+        setAiGeneratedQuestions([]); // Reset after adding
+        // scroll to bottom to see added questions
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    };
+
+    const handleUpdateAiQuestion = (id, field, value, subField = null) => {
+        setAiGeneratedQuestions(prev => prev.map(q => {
+            if (q.id === id) {
+                if (subField) {
+                    return { ...q, options: { ...q.options, [subField]: value } };
+                }
+                return { ...q, [field]: value };
+            }
+            return q;
+        }));
     };
 
     return (
@@ -410,6 +510,133 @@ const CreateExam = () => {
                             </div>
                         );
                     })}
+                </div>
+
+                {/* 🤖 IA QCM Generator Section */}
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-3xl shadow-sm border border-purple-200 mt-10">
+                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2 mb-6 border-b border-purple-200 pb-4">
+                        <FaRobot className="text-purple-600" /> Generate QCM with AI
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div className="col-span-1 border border-slate-200 bg-white rounded-xl p-4 shadow-sm">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Choisir le Modèle IA</label>
+                            <select 
+                                className="block w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-4 focus:ring-2 focus:ring-purple-500"
+                                value={aiProvider}
+                                onChange={(e) => setAiProvider(e.target.value)}
+                            >
+                                <option value="gemini">Gemini 2.5 Flash (Google) - Rapide & Gratuit</option>
+                                <option value="groq">Llama 3.3 70B (Groq) - Ultra Rapide</option>
+                                <option value="openrouter">Llama 3.1 405B (OpenRouter) - Plus Précis</option>
+                            </select>
+
+                            <label className="block text-sm font-bold text-slate-700 mt-4 mb-2">Nombre de questions</label>
+                            <input 
+                                type="number" 
+                                min="5" max="30" 
+                                value={aiNbQuestions}
+                                onChange={(e) => setAiNbQuestions(e.target.value)}
+                                className="block w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-4 focus:ring-2 focus:ring-purple-500"
+                            />
+                        </div>
+
+                        <div className="col-span-2 border border-slate-200 bg-white rounded-xl p-4 shadow-sm">
+                            <div className="flex border-b border-slate-100 mb-4">
+                                <button type="button" onClick={() => setAiTab('text')} className={`flex-1 flex justify-center items-center gap-2 py-2 px-4 border-b-2 font-bold transition-colors ${aiTab === 'text' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                                    <FaFileAlt /> Coller du texte
+                                </button>
+                                <button type="button" onClick={() => setAiTab('pdf')} className={`flex-1 flex justify-center items-center gap-2 py-2 px-4 border-b-2 font-bold transition-colors ${aiTab === 'pdf' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                                    <FaUpload /> Upload PDF
+                                </button>
+                            </div>
+
+                            {aiTab === 'text' ? (
+                                <textarea 
+                                    className="w-full h-32 bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-purple-500"
+                                    placeholder="Collez le texte du cours ici..."
+                                    value={aiText}
+                                    onChange={(e) => setAiText(e.target.value)}
+                                ></textarea>
+                            ) : (
+                                <div className="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center bg-purple-50/50">
+                                    <input 
+                                        type="file" 
+                                        accept=".pdf"
+                                        onChange={(e) => setAiFile(e.target.files[0])}
+                                        className="block w-full text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-2">Format PDF uniquement. Max 10MB.</p>
+                                </div>
+                            )}
+
+                            {aiError && (
+                                <p className="text-red-600 font-semibold mt-2 text-sm">{aiError}</p>
+                            )}
+
+                            <button 
+                                type="button"
+                                onClick={handleAiGenerate}
+                                disabled={aiLoading}
+                                className={`mt-4 w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-md transition-all ${aiLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            >
+                                {aiLoading ? 'Génération en cours...' : (<>✨ Générer le QCM</>)}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Preview Generated Questions */}
+                    {aiGeneratedQuestions.length > 0 && (
+                        <div className="space-y-4 mb-6">
+                            <h3 className="font-bold text-slate-700 text-lg">Aperçu des questions générées ({aiGeneratedQuestions.length})</h3>
+                            {aiGeneratedQuestions.map((q, idx) => (
+                                <div key={q.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative">
+                                    <button onClick={() => setAiGeneratedQuestions(prev => prev.filter(x => x.id !== q.id))} type="button" className="absolute top-4 right-4 text-slate-400 hover:text-red-500 bg-slate-50 hover:bg-red-50 p-2 rounded-full transition"><FaTrash /></button>
+                                    
+                                    <input 
+                                        type="text" 
+                                        value={q.question_text || q.question || ""} 
+                                        onChange={(e) => handleUpdateAiQuestion(q.id, (q.question_text !== undefined ? 'question_text' : 'question'), e.target.value)}
+                                        className="w-[90%] font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 mb-4"
+                                    />
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {['A','B','C','D'].map(char => {
+                                            const isCorrect = (q.correct_option === char) || (q.correct === char);
+                                            return (
+                                                <div key={char} className={`flex items-center gap-2 rounded-lg p-2 border ${isCorrect ? 'border-green-500 bg-green-50' : 'border-slate-200 bg-slate-50'}`}>
+                                                    <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${isCorrect ? 'bg-green-500 text-white' : 'bg-slate-300 text-slate-700'}`}>{char}</span>
+                                                    <input 
+                                                        type="text" 
+                                                        value={q[`option_${char.toLowerCase()}`] || q.options?.[char] || ""}
+                                                        onChange={(e) => handleUpdateAiQuestion(q.id, null, e.target.value, char)}
+                                                        className={`flex-1 bg-transparent border-none focus:ring-0 text-sm outline-none w-full ${isCorrect ? 'font-semibold text-green-900' : 'text-slate-700'}`}
+                                                    />
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    <div className="mt-3 flex gap-2">
+                                        <span className="text-xs font-bold text-slate-500 uppercase flex items-center">Bonne réponse :</span>
+                                        <select 
+                                            value={q.correct_option || q.correct || 'A'} 
+                                            onChange={(e) => handleUpdateAiQuestion(q.id, (q.correct_option !== undefined ? 'correct_option' : 'correct'), e.target.value)}
+                                            className="text-sm bg-white border border-slate-300 rounded p-1"
+                                        >
+                                            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            ))}
+                            <button 
+                                type="button"
+                                onClick={handleAddAiQuestionsToExam}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-md transition-all shadow border border-green-500"
+                            >
+                                <FaSave className="text-xl" /> 💾 Ajouter ces questions à l'examen
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Add New Question Toolbar */}

@@ -3,7 +3,7 @@ const express = require("express");
 const http = require("http");
 const app = express();
 const { initWebSockets } = require('./services/websocketService');
-const connectMongo = require('./config/mongoConnect');
+//const connectMongo = require('./config/mongoConnect');
 const errorHandler = require("./middleware/errorHandler");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -16,7 +16,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 // Connect to MongoDB
-connectMongo();
+//connectMongo();
 
 // Authentication endpoint
 app.use("/auth", require('./routes/auth'));
@@ -35,6 +35,7 @@ app.use("/departmentadmin/teachers", require("./routes/departmentadmin/teachers"
 // Protected Routes - Teacher
 app.use("/teacher/modules", require("./routes/teacher/modules"));
 app.use("/teacher/exams", require("./routes/teacher/exams"));
+app.use("/teacher/qcm", require("./routes/teacher/qcm"));
 
 // Protected Routes - Student
 app.use("/student/exams", require("./routes/student/exams"));

@@ -26,6 +26,24 @@ const ExamDetailsModal = ({ isOpen, examId, onClose }) => {
         }
     }, [isOpen, examId]);
 
+    const handleDownloadSeb = async () => {
+        try {
+            const response = await axiosInstance.get(`/teacher/exams/${examId}/seb-config`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `exam-${examData?.title?.replace(/\s+/g, '-') || 'config'}.seb`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+        } catch (error) {
+            console.error("Error downloading SEB config:", error);
+            alert("Failed to download SEB configuration.");
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -132,7 +150,15 @@ const ExamDetailsModal = ({ isOpen, examId, onClose }) => {
                     )}
                 </div>
 
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                    {examData && (
+                        <button 
+                            onClick={handleDownloadSeb}
+                            className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-medium transition shadow-sm"
+                        >
+                            Download .seb
+                        </button>
+                    )}
                     <button 
                         onClick={onClose}
                         className="px-5 py-2.5 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-xl font-medium transition"

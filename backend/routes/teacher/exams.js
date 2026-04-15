@@ -11,5 +11,6 @@ router.post('/:id/publish', examController.publishExam);
 router.post('/:id/unpublish', examController.unpublishExam);
 router.get('/:id', examController.getExamDetails);
 router.put('/:id/groups', examController.updateExamGroups);
+router.get('/:id/seb-config', examController.generateSebConfig);
 
 module.exports = router;

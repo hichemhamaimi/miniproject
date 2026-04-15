@@ -30,3 +30,18 @@
 [2026-03-12T07:39:01.307Z] publishExam insert success : {
   "exam_id": "4"
 }
+[2026-04-10T17:44:17.259Z] publishExam received groupIds : [
+  1
+]
+[2026-04-10T17:44:17.261Z] publishExam validGroupIds : [
+  1
+]
+[2026-04-10T17:44:17.262Z] publishExam inserting values : [
+  [
+    "10",
+    1
+  ]
+]
+[2026-04-10T17:44:17.263Z] publishExam insert success : {
+  "exam_id": "10"
+}

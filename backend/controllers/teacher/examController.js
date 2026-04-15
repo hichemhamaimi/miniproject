@@ -1,5 +1,5 @@
 const pool = require('../../config/dbConnect');
-const Exam = require('../../models/Exam');
+// const Exam = require('../../models/Exam'); // Migration vers MySQL JSON exclusive
 const fs = require('fs');
 const path = require('path');
 
@@ -15,9 +15,9 @@ const getTeacherExams = async (req, res) => {
     try {
         const teacher_id = req.userId;
         
-        // Fetch metadata from MySQL
+        // Fetch metadata and JSON content from MySQL
         const query = `
-            SELECT e.id, e.title, e.creation_date, e.module_id, e.status, e.duration_minutes, e.start_time, e.end_time, m.name as module_name, m.abbreviation as module_abbreviation
+            SELECT e.id, e.title, e.creation_date, e.module_id, e.status, e.duration_minutes, e.start_time, e.end_time, e.exam_data, m.name as module_name, m.abbreviation as module_abbreviation
             FROM exams e
             LEFT JOIN modules m ON e.module_id = m.id
             WHERE e.teacher_id = ?
@@ -29,16 +29,10 @@ const getTeacherExams = async (req, res) => {
             return res.status(200).json([]);
         }
 
-        // Fetch corresponding MongoDB documents
-        const examIds = mysqlExams.map(ex => ex.id);
-        const mongoExams = await Exam.find({ _id: { $in: examIds } }).lean();
-
-        // Merge data
         const mergedExams = mysqlExams.map(mysqlExam => {
-            const mongoExam = mongoExams.find(m => m._id === mysqlExam.id);
             return {
                 ...mysqlExam,
-                examData: mongoExam ? mongoExam.examData : null
+                examData: typeof mysqlExam.exam_data === 'string' ? JSON.parse(mysqlExam.exam_data) : mysqlExam.exam_data
             };
         });
 
@@ -63,21 +57,15 @@ const createExam = async (req, res, next) => {
         // 1. MySQL Transaction
         await connection.beginTransaction();
 
-        const insertQuery = `INSERT INTO exams (teacher_id, module_id, title, duration_minutes, status) VALUES (?, ?, ?, ?, 'DRAFT')`;
+        const insertQuery = `INSERT INTO exams (teacher_id, module_id, title, duration_minutes, status, exam_data) VALUES (?, ?, ?, ?, 'DRAFT', ?)`;
+        const examDataJson = JSON.stringify(examData);
+        
         // Execute the insert to get the Auto-Incremented ID
-        const [result] = await connection.query(insertQuery, [teacher_id, module_id || null, title, duration_minutes || 60]);
+        const [result] = await connection.query(insertQuery, [teacher_id, module_id || null, title, duration_minutes || 60, examDataJson]);
         
         const sqlInsertId = result.insertId;
 
-        // 2. MongoDB Insertion
-        const newExamDocument = new Exam({
-            _id: sqlInsertId,
-            examData: examData
-        });
-
-        await newExamDocument.save();
-
-        // 3. Commit MySQL Transaction only if MongoDB save was successful
+        // 2. Commit MySQL Transaction
         await connection.commit();
 
         res.status(201).json({
@@ -90,10 +78,10 @@ const createExam = async (req, res, next) => {
         console.error("Error creating exam:", error);
         
         // Return 400 for duplicate key or bad requests, 500 otherwise
-        if (error.code === 11000) {
-             res.status(400).json({ message: "Duplicate Database Entry Error. Please try again." });
+        if (error.code === 'ER_DUP_ENTRY') {
+             res.status(400).json({ message: "Un examen avec des paramètres similaires existe déjà.", error: error.message });
         } else {
-             res.status(500).json({ message: "Internal server error during exam creation" });
+             res.status(500).json({ message: "Erreur critique du serveur lors de la sauvegarde de l'examen.", error: error.message });
         }
     } finally {
         connection.release();
@@ -169,9 +157,9 @@ const getExamDetails = async (req, res) => {
         const { id } = req.params;
         const teacher_id = req.userId;
 
-        // Fetch basic info from MySQL
+        // Fetch basic info and json from MySQL
         const query = `
-            SELECT e.id, e.title, e.creation_date, e.status, e.duration_minutes, e.start_time, e.end_time,
+            SELECT e.id, e.title, e.creation_date, e.status, e.duration_minutes, e.start_time, e.end_time, e.exam_data,
                    m.name as module_name, m.abbreviation as module_abbreviation
             FROM exams e
             LEFT JOIN modules m ON e.module_id = m.id
@@ -196,14 +184,9 @@ const getExamDetails = async (req, res) => {
         
         examData.assignedGroups = groupsRes;
 
-        // Fetch MongoDB data (questions etc)
-        const mongoExam = await Exam.findById(id).lean();
-        if (mongoExam && mongoExam.examData) {
-            // Include question count and maybe total score if it was calculated
-            examData.content = mongoExam.examData;
-        } else {
-            examData.content = null;
-        }
+        // Parse JSON content
+        examData.content = typeof examData.exam_data === 'string' ? JSON.parse(examData.exam_data) : (examData.exam_data || null);
+        delete examData.exam_data; // Ne pas renvoyer le champ brut
 
         res.status(200).json(examData);
 
@@ -302,11 +285,48 @@ const updateExamGroups = async (req, res) => {
     }
 };
 
+const generateSebConfig = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const teacher_id = req.userId;
+
+        // Verify the exam belongs to the teacher
+        const [examCheck] = await pool.query(`SELECT id, title FROM exams WHERE id = ? AND teacher_id = ?`, [id, teacher_id]);
+        if (examCheck.length === 0) {
+            return res.status(404).json({ message: "Exam not found or you don't have permission." });
+        }
+
+        const examUrl = `http://localhost:5173/student/exam/${id}`;
+
+        const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>startURL</key>
+    <string>${examUrl}</string>
+    <key>sendBrowserExamKey</key>
+    <true/>
+    <key>allowQuit</key>
+    <false/>
+</dict>
+</plist>`;
+
+        res.setHeader('Content-Type', 'application/seb');
+        res.setHeader('Content-Disposition', `attachment; filename="exam-${examCheck[0].title.replace(/\s+/g, '-')}.seb"`);
+        res.send(xmlContent);
+
+    } catch (error) {
+        console.error("Error generating SEB config:", error);
+        res.status(500).json({ message: "Internal server error generating SEB config." });
+    }
+};
+
 module.exports = {
     getTeacherExams,
     createExam,
     publishExam,
     unpublishExam,
     getExamDetails,
-    updateExamGroups
+    updateExamGroups,
+    generateSebConfig
 };
