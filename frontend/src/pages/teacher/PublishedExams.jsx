@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axiosInstance from '../../utils/axiosInstance';
 import { useNavigate } from 'react-router-dom';
-import { FiBookOpen, FiEdit2, FiGlobe, FiEyeOff } from 'react-icons/fi';
+import { FiBookOpen, FiEdit2, FiGlobe, FiEyeOff, FiBarChart2 } from 'react-icons/fi';
 
 const STATUS_BADGE = {
     draft: 'bg-amber-100 text-amber-700 border border-amber-200',
@@ -81,6 +81,14 @@ const PublishedExams = () => {
                 >
                     <FiEdit2 /> Edit
                 </button>
+                {exam.status === 'published' && (
+                    <button
+                        onClick={() => navigate(`/teacher/exam-statistics/${exam._id}`)}
+                        className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition"
+                    >
+                        <FiBarChart2 /> Stats
+                    </button>
+                )}
                 {exam.status === 'draft' ? (
                     <button
                         onClick={() => handlePublish(exam._id)}

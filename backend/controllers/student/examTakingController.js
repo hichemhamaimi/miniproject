@@ -181,7 +181,26 @@ const submitExam = async (req, res) => {
             [session.id]
         );
 
-        // Optional: Save score to a grades table (omitted for brevity, assume stored in session or gradebook)
+        // 6. Save score to `exam_results` and `question_results`
+        const [insertResultRes] = await connection.query(
+            `INSERT INTO exam_results (student_id, exam_id, score) VALUES (?, ?, ?)`,
+            [student_id, id, graderResult.totalScore]
+        );
+        const examResultId = insertResultRes.insertId;
+
+        if (graderResult.gradedQuestions && graderResult.gradedQuestions.length > 0) {
+            const qrValues = graderResult.gradedQuestions.map(d => [
+                examResultId, 
+                d.questionId, 
+                JSON.stringify(d.studentAnswer || null), 
+                d.isCorrect ? 1 : 0
+            ]);
+            
+            await connection.query(
+                `INSERT INTO question_results (exam_result_id, question_id, selected_choice, is_correct) VALUES ?`,
+                [qrValues]
+            );
+        }
         
         await connection.commit();
 

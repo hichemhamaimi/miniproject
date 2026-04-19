@@ -45,9 +45,11 @@ app.use("/teacher/exams", require("./routes/teacher/exams"));
 app.use("/teacher/materials", require("./routes/teacher/materials"));
 app.use("/teacher/blueprints", require("./routes/teacher/blueprints"));
 app.use("/teacher/ai-exams", require("./routes/teacher/aiExams"));
+app.use("/teacher/statistics", require("./routes/teacher/statistics"));
 
 // Protected Routes - Student
 app.use("/student/exams", require("./routes/student/exams"));
+app.use("/student/results", require("./routes/student/results"));
 
 app.use((req, res) => res.status(404).json({ error: "404 Not Found" }));
 

@@ -25,6 +25,8 @@ import DeptAdminGroups from './pages/departmentadmin/Groups.jsx'
 import DeptAdminModules from './pages/departmentadmin/Modules.jsx'
 import StudentDashboard from './pages/student/Dashboard.jsx'
 import TakeExam from './pages/student/TakeExam.jsx'
+import StudentResults from './pages/student/StudentResults.jsx'
+import ExamStatistics from './pages/teacher/ExamStatistics.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -45,6 +47,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
              <Route path="teacher/ai-exam-generator" element={<AIExamGenerator />} />
              <Route path="teacher/ai-exam-review/:examId" element={<AIExamReview />} />
              <Route path="teacher/published-exams" element={<PublishedExams />} />
+             <Route path="teacher/exam-statistics/:examId" element={<ExamStatistics />} />
              <Route path="superadmin/dashboard" element={<SuperAdminDashboard />} />
              <Route path="superadmin/users" element={<SuperAdminUsers />} />
              <Route path="superadmin/departments" element={<SuperAdminDepartments />} />
@@ -53,6 +56,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
              <Route path="departmentadmin/modules" element={<DeptAdminModules />} />
              <Route path="student/dashboard" element={<StudentDashboard />} />
              <Route path="student/exams/:examId" element={<TakeExam />} />
+             <Route path="student/results" element={<StudentResults />} />
           </Route>
         </Routes>
       </BrowserRouter>

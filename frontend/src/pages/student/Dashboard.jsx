@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import { FaPlayCircle, FaCheckCircle, FaClock, FaDownload } from 'react-icons/fa';
+import { FiAward } from 'react-icons/fi';
 
 const Dashboard = () => {
     const { user } = useAuth();
@@ -78,6 +79,9 @@ const Dashboard = () => {
                     <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
                     <p className="text-gray-500 mt-1">Welcome, {user.username}. Here are your assigned exams.</p>
                 </div>
+                <Link to="/student/results" className="mt-4 md:mt-0 flex items-center gap-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold shadow hover:shadow-md transition text-sm">
+                    <FiAward /> My Results
+                </Link>
             </header>
 
             {loading ? (
