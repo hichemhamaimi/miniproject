@@ -69,3 +69,6 @@ frontend/dist/
 frontend/build/
 backend/node_modules/
 frontend/node_modules/
+
+# Local report sources/build artifacts
+report/
