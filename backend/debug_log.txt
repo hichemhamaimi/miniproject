@@ -60,3 +60,18 @@
 [2026-04-01T00:54:46.690Z] publishExam insert success : {
   "exam_id": "6"
 }
+[2026-04-25T13:23:00.496Z] publishExam received groupIds : [
+  1
+]
+[2026-04-25T13:23:00.503Z] publishExam validGroupIds : [
+  1
+]
+[2026-04-25T13:23:00.504Z] publishExam inserting values : [
+  [
+    "1",
+    1
+  ]
+]
+[2026-04-25T13:23:00.512Z] publishExam insert success : {
+  "exam_id": "1"
+}

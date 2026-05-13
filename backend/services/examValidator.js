@@ -13,6 +13,7 @@ const questionSchema = {
         difficulty: { type: 'string', enum: validDifficultyLevels },
         question: { type: 'string', minLength: 1 },
         options: { type: 'array', items: { type: 'string' } },
+        correctAnswerIndexes: { type: 'array', items: { type: 'integer', minimum: 0 } },
         correctAnswers: { type: 'array', items: { type: 'string' } },
         trueFalseAnswer: { type: 'boolean' },
         matchingPairs: {
@@ -28,7 +29,8 @@ const questionSchema = {
         },
         orderedItems: { type: 'array', items: { type: 'string' } },
         explanation: { type: 'string' }
-    }
+    },
+    additionalProperties: true
 };
 
 const examResponseSchema = {
@@ -64,18 +66,35 @@ const validateExam = (examData) => {
         const prefix = `Question ${i + 1}`;
 
         if (q.type === 'single_choice' || q.type === 'multiple_choice' || q.type === 'negative_qcm') {
-            if (!q.options || q.options.length < 2) {
-                semanticErrors.push(`${prefix}: options array must have at least 2 items for type "${q.type}"`);
+            if (!q.options || q.options.length !== 4) {
+                semanticErrors.push(`${prefix}: options array must have exactly 4 items for type "${q.type}"`);
             }
-            if (!q.correctAnswers || q.correctAnswers.length === 0) {
-                semanticErrors.push(`${prefix}: correctAnswers is required for type "${q.type}"`);
+            if (!q.correctAnswerIndexes || q.correctAnswerIndexes.length === 0) {
+                semanticErrors.push(`${prefix}: correctAnswerIndexes is required for type "${q.type}"`);
             }
-            if (q.options && q.correctAnswers) {
-                const invalid = q.correctAnswers.filter(a => !q.options.includes(a));
+            if (q.correctAnswerIndexes) {
+                const uniqueIndexes = new Set(q.correctAnswerIndexes);
+                if (uniqueIndexes.size !== q.correctAnswerIndexes.length) {
+                    semanticErrors.push(`${prefix}: correctAnswerIndexes must not contain duplicates`);
+                }
+                const outOfRange = q.correctAnswerIndexes.filter((index) => !Number.isInteger(index) || index < 0 || index >= (q.options?.length || 0));
+                if (outOfRange.length > 0) {
+                    semanticErrors.push(`${prefix}: correctAnswerIndexes contains invalid option indexes: ${outOfRange.join(', ')}`);
+                }
+            }
+            if ((q.type === 'single_choice' || q.type === 'negative_qcm') && q.correctAnswerIndexes && q.correctAnswerIndexes.length !== 1) {
+                semanticErrors.push(`${prefix}: ${q.type} must have exactly 1 correctAnswerIndexes entry`);
+            }
+            if (q.correctAnswers && q.correctAnswers.length > 0) {
+                const invalid = q.correctAnswers.filter((answer) => !q.options.includes(answer));
                 if (invalid.length > 0) {
                     semanticErrors.push(`${prefix}: correctAnswers contains values not in options: ${invalid.join(', ')}`);
                 }
             }
+        }
+
+        if (q.type === 'multiple_choice' && q.correctAnswerIndexes && q.correctAnswerIndexes.length === 0) {
+            semanticErrors.push(`${prefix}: multiple_choice must have at least 1 correct answer index`);
         }
 
         if (q.type === 'true_false' && q.trueFalseAnswer === undefined) {

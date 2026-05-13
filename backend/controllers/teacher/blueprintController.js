@@ -1,15 +1,19 @@
 const ExamBlueprint = require('../../models/ExamBlueprint');
 const config = require('../../config/system.config');
+const pool = require('../../config/dbConnect');
 
 // POST /teacher/blueprints
 const createBlueprint = async (req, res) => {
     try {
         const {
+            moduleId,
+            title,
             materials,
             selectedConcepts,
             questionTypes,
             difficultyDistribution,
             scoringRules,
+            scoringConfig,
             instructions,
             totalQuestions
         } = req.body;
@@ -20,16 +24,37 @@ const createBlueprint = async (req, res) => {
                 message: `Total questions cannot exceed ${config.examGeneration.maxQuestions}.`
             });
         }
+        if (!moduleId || !title) {
+            return res.status(400).json({ message: 'moduleId and title are required.' });
+        }
+        const [moduleRows] = await pool.query(
+            'SELECT id FROM modules WHERE id = ? AND responsable_teacher_id = ? LIMIT 1',
+            [moduleId, req.userId]
+        );
+        if (moduleRows.length === 0) {
+            return res.status(403).json({ message: 'You are not authorized to create a blueprint for this module.' });
+        }
 
         const blueprint = await ExamBlueprint.create({
             teacherId: req.userId,
+            moduleId,
+            title,
             materials: materials || [],
             selectedConcepts: selectedConcepts || [],
             questionTypes: questionTypes || {},
             difficultyDistribution: difficultyDistribution || {},
             scoringRules: scoringRules || {},
+            scoringConfig: scoringConfig || {},
             instructions: instructions || '',
-            totalQuestions: totalQuestions || 0
+            totalQuestions: totalQuestions || 0,
+            generationContext: {
+                selectedMaterialTitles: req.body.selectedMaterialTitles || [],
+                selectedTopicCount: (selectedConcepts || []).length,
+                examProviderConfigId: req.body.examProviderConfigId || null,
+                academicDifficultyDistribution: req.body.academicDifficultyDistribution || {},
+                cognitiveDistribution: req.body.cognitiveDistribution || {},
+                questionProfiles: req.body.questionProfiles || [],
+            },
         });
 
         res.status(201).json(blueprint);
@@ -65,11 +90,14 @@ const getBlueprint = async (req, res) => {
 const updateBlueprint = async (req, res) => {
     try {
         const {
+            moduleId,
+            title,
             materials,
             selectedConcepts,
             questionTypes,
             difficultyDistribution,
             scoringRules,
+            scoringConfig,
             instructions,
             totalQuestions
         } = req.body;
@@ -82,7 +110,26 @@ const updateBlueprint = async (req, res) => {
 
         const blueprint = await ExamBlueprint.findOneAndUpdate(
             { _id: req.params.id, teacherId: req.userId },
-            { materials, selectedConcepts, questionTypes, difficultyDistribution, scoringRules, instructions, totalQuestions },
+            {
+                moduleId,
+                title,
+                materials,
+                selectedConcepts,
+                questionTypes,
+                difficultyDistribution,
+                scoringRules,
+                scoringConfig,
+                instructions,
+                totalQuestions,
+                generationContext: {
+                    selectedMaterialTitles: req.body.selectedMaterialTitles || [],
+                    selectedTopicCount: (selectedConcepts || []).length,
+                    examProviderConfigId: req.body.examProviderConfigId || null,
+                    academicDifficultyDistribution: req.body.academicDifficultyDistribution || {},
+                    cognitiveDistribution: req.body.cognitiveDistribution || {},
+                    questionProfiles: req.body.questionProfiles || [],
+                },
+            },
             { new: true }
         );
 

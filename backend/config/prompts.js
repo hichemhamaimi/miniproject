@@ -1,91 +1,188 @@
 /**
- * System Prompts Configuration
- * 
- * You can effortlessly edit these prompts here. 
- * They are optimized to strictly prevent LLM hallucinations using "Chain of Verification"
- * (requiring verbatim quotes) and strict academic bounds.
+ * Central prompt configuration for the LLM-backed features.
+ *
+ * Teachers or maintainers can edit this file to tune:
+ * - mind map extraction
+ * - exam generation
+ *
+ * Template placeholders use the form {{variableName}}.
  */
 
-module.exports = {
-  // ----------------------------------------------------------------------
-  // MINDMAP GENERATION PROMPT
-  // ----------------------------------------------------------------------
-  mindmapGenerationPrompt: `
-You are an expert academic curriculum designer. Your task is to extract a structured hierarchy of core concepts from the provided study material.
+const renderTemplate = (template, variables = {}) => template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const value = variables[key];
+    return value === undefined || value === null ? '' : String(value);
+});
 
-STUDY MATERIAL:
+const templates = {
+    mindmapGeneration: `
+You are an expert academic curriculum designer.
+
+Your task is to extract a clean hierarchical concept map from the provided study material.
+
+Material title:
+{{materialTitle}}
+
+Study material:
 {{materials}}
 
-CRITICAL INSTRUCTIONS:
-1. ONLY extract concepts that are explicitly present in the provided material. Do not draw on outside knowledge.
-2. If the text does not contain enough information to build a mindmap, return a minimal structure or empty array.
-3. Organize the concepts logically into high-level categories (parent nodes) and sub-topics (children nodes).
-4. Return ONLY valid JSON matching the exact structure below. Do not wrap it in markdown.
+Rules:
+1. Use ONLY concepts explicitly supported by the provided material.
+2. Do NOT add outside knowledge, background facts, or inferred topics.
+3. Prefer a compact, useful hierarchy over a large noisy tree.
+4. Merge duplicates and normalize wording when the same concept appears multiple times.
+5. If the material is sparse, return the smallest useful concept map you can justify from the text.
+6. Output valid JSON only. No markdown, no commentary, no code fences.
 
-EXPECTED JSON STRUCTURE:
+Return exactly this schema:
 {
-  "title": "<A summary title for the entire mindmap>",
+  "title": "Short title for the material",
   "concepts": [
     {
-      "name": "High level parent concept",
+      "name": "Main concept",
       "children": [
-        { "name": "Specific sub-concept", "children": [] }
+        { "name": "Subconcept", "children": [] }
       ]
     }
   ]
 }
 `.trim(),
 
-  // ----------------------------------------------------------------------
-  // EXAM GENERATION PROMPT
-  // ----------------------------------------------------------------------
-  examGenerationPrompt: `
-You are an expert, meticulous university exam generator. You are highly pedantic and only test what is explicitly covered in the requested material. 
+    examGeneration: `
+You are an expert university exam designer.
 
-STUDY MATERIAL CONTEXT:
+Generate an exam draft using ONLY the provided study material and the blueprint requirements.
+
+Exam blueprint title:
+{{blueprintTitle}}
+
+Question specification:
+{{questionTypes}}
+
+Difficulty distribution:
+{{difficulty}}
+
+Difficulty and Bloom profile:
+{{questionProfiles}}
+
+Selected topics to prioritize:
+{{concepts}}
+
+Special instructions:
+{{instructions}}
+
+Study material context:
 {{materials}}
 
-BLUEPRINT REQUIREMENTS:
-- Total number of questions to generate: {{totalQuestions}}
-- Required Question Types and exact counts: {{questionTypes}}
-- Requested Difficulty Spread: {{difficulty}}
-- Topics/Concepts to cover: {{concepts}}
-- Special Instructions: {{instructions}}
+Critical rules:
+1. Every question MUST be answerable from the provided material alone.
+2. Do NOT use outside knowledge, unstated assumptions, or hallucinated facts.
+3. Generate exactly the requested counts and question types.
+4. Keep questions academically clear, unambiguous, and aligned with the requested topics and difficulty mix.
+5. Every question MUST include an explanation grounded in the provided material.
+6. Output valid JSON only. No markdown, no commentary, no code fences.
+7. Treat the "difficulty" output field as the Bloom cognitive level, and use the difficulty/Bloom profile to balance both academic difficulty and cognition across the full exam.
+8. Use the exact allowed enum values only. Do not shorten or paraphrase them.
+9. Never return null for any field. Use empty arrays for unused array fields, omit unused boolean fields, and keep strings as strings.
+10. Never invent placeholder fields such as "options_placeholder", "notes", "metadata", or similar. Only output the allowed keys.
+11. For choice questions, NEVER return the full correct answer text in any answer key field. Return indexes only.
+12. Every question object must be internally complete and valid on its own. Do not leave required enum fields empty or undefined.
 
-ANTI-HALLUCINATION PROTOCOL (CRITICAL!):
-- You MUST construct questions EXCLUSIVELY from the provided study material. 
-- You MUST NOT invent, infer, or hallucinate facts that are not explicitly stated in the context.
-- Before writing a question, you must extract a "source_quote" from the text that definitively proves the correct answer. If you cannot find a direct quote, DO NOT write the question.
+Question format rules:
+- Allowed types: single_choice, multiple_choice, true_false, matching, ordering, negative_qcm
+- Allowed difficulties: recall, understanding, application, analysis, evaluation, create
+- Do not use aliases such as "apply" or "analyze". Use "application" and "analysis" exactly.
+- For single_choice, multiple_choice, and negative_qcm:
+  - provide exactly 4 options
+  - provide correctAnswerIndexes as zero-based indexes into the options array
+  - for single_choice and negative_qcm, correctAnswerIndexes must contain exactly 1 index
+  - for multiple_choice, correctAnswerIndexes must contain 1 or more unique indexes
+  - set matchingPairs to []
+  - set orderedItems to []
+  - do not include correctAnswers
+- For true_false:
+  - provide trueFalseAnswer as true or false
+  - set correctAnswerIndexes to []
+  - set matchingPairs to []
+  - set orderedItems to []
+- For matching:
+  - provide matchingPairs as [{"left":"...","right":"..."}]
+  - set correctAnswerIndexes to []
+  - set orderedItems to []
+- For ordering:
+  - provide orderedItems in the correct logical order
+  - set correctAnswerIndexes to []
+  - set matchingPairs to []
 
-QUESTION TYPE RULES:
-- Difficulty strings must be one of: [recall, understanding, application, analysis, evaluation]
-- Question type strings must be one of: [single_choice, multiple_choice, true_false, matching, ordering, negative_qcm]
-- For 'single_choice', 'multiple_choice', & 'negative_qcm': you must provide an 'options' array. 'correctAnswers' must exactly match options strings.
-- For 'true_false': set 'trueFalseAnswer' to boolean true or false.
-- For 'matching': provide 'matchingPairs' as [{"left": "Term", "right": "Definition"}]
-- For 'ordering': provide 'orderedItems' as a list of strings in the correct chronological or logical order.
-- Every single question MUST have a helpful 'explanation' string.
+Output constraints:
+- Return exactly one top-level object with exactly 2 keys: examTitle, questions
+- Each question must contain only these keys:
+  type, difficulty, question, options, correctAnswerIndexes, trueFalseAnswer, matchingPairs, orderedItems, explanation
+- If a key is not applicable, use an empty array for array fields and omit trueFalseAnswer when not applicable
+- Never repeat a key in the same object
+- Never return undefined
+- Never return trailing prose after the JSON
 
-JSON OUTPUT REQUIREMENT:
-Output ONLY flawless JSON. No markdown blocks, no conversational text.
-
-EXPECTED JSON STRUCTURE:
+Return exactly this schema:
 {
-  "examTitle": "<Title derived from constraints>",
+  "examTitle": "{{blueprintTitle}}",
   "questions": [
     {
-      "source_quote": "<Exact quote verbatim from the text proving the answer>",
-      "type": "<one of the valid types>",
-      "difficulty": "<one of the valid difficulties>",
-      "question": "<The question string>",
-      "options": ["<only if applicable>"],
-      "correctAnswers": ["<only if applicable>"],
+      "type": "single_choice | multiple_choice | true_false | matching | ordering | negative_qcm",
+      "difficulty": "recall | understanding | application | analysis | evaluation | create",
+      "question": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswerIndexes": [1],
       "trueFalseAnswer": true,
-      "matchingPairs": [{"left": "...", "right": "..."}],
-      "orderedItems": ["..."],
-      "explanation": "<Why the answer is correct>"
+      "matchingPairs": [{"left": "Term 1", "right": "Definition 1"}],
+      "orderedItems": ["Step 1", "Step 2", "Step 3"],
+      "explanation": "Why the answer is correct based on the material"
     }
   ]
 }
-`.trim()
+`.trim(),
+
+    examGenerationRepairSuffix: `
+
+The previous attempt was rejected by validation.
+Fix every issue below and regenerate the ENTIRE JSON object from scratch.
+
+Validation errors:
+{{validationErrors}}
+
+Important:
+- Do not explain the fixes
+- Do not wrap the JSON in markdown
+- Return a fresh, fully valid JSON object only
+`.trim(),
+};
+
+const buildMindmapPrompt = ({ materialTitle, materials }) => renderTemplate(templates.mindmapGeneration, {
+    materialTitle,
+    materials,
+});
+
+const buildExamGenerationPrompt = ({
+    blueprintTitle,
+    questionTypes,
+    difficulty,
+    questionProfiles,
+    concepts,
+    instructions,
+    materials,
+    validationErrors,
+}) => renderTemplate(templates.examGeneration, {
+    blueprintTitle,
+    questionTypes,
+    difficulty,
+    questionProfiles,
+    concepts,
+    instructions,
+    materials,
+}) + (validationErrors ? `\n\n${renderTemplate(templates.examGenerationRepairSuffix, { validationErrors })}` : '');
+
+module.exports = {
+    templates,
+    renderTemplate,
+    buildMindmapPrompt,
+    buildExamGenerationPrompt,
 };

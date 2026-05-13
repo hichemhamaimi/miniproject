@@ -1,27 +1,40 @@
 import React, { useState } from 'react';
 import axiosInstance from '../../utils/axiosInstance';
-import { FaGlobe, FaTimes, FaSpinner } from 'react-icons/fa';
+import { toSqlLocalDateTime } from '../../utils/dateTime';
+import { FiClock, FiGlobe, FiX } from 'react-icons/fi';
 
-const PublishExamModal = ({ isOpen, onClose, exam, availableGroups, onPublishSuccess }) => {
+const PublishExamModal = ({ isOpen, onClose, exam, availableGroups, onPublishSuccess, publishPath }) => {
     const [selectedGroups, setSelectedGroups] = useState([]);
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
+    const [durationMinutes, setDurationMinutes] = useState(60);
+    const [requireSeb, setRequireSeb] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
     const [error, setError] = useState('');
+
+    React.useEffect(() => {
+        if (isOpen && exam) {
+            setRequireSeb(Boolean(exam.require_seb));
+            setDurationMinutes(Number(exam.duration_minutes) > 0 ? Number(exam.duration_minutes) : 60);
+        }
+    }, [exam, isOpen]);
 
     if (!isOpen || !exam) return null;
 
     const handleGroupToggle = (groupId) => {
-        setSelectedGroups(prev => 
-            prev.includes(groupId) 
-                ? prev.filter(id => id !== groupId)
-                : [...prev, groupId]
+        setSelectedGroups((prev) =>
+            prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
         );
     };
 
     const handlePublish = async () => {
         if (selectedGroups.length === 0) {
-            setError("You must select at least one group to publish to.");
+            setError('You must select at least one group to publish to.');
+            return;
+        }
+        const parsedDuration = Number.parseInt(durationMinutes, 10);
+        if (!Number.isFinite(parsedDuration) || parsedDuration < 1) {
+            setError('Duration must be at least 1 minute.');
             return;
         }
 
@@ -30,108 +43,112 @@ const PublishExamModal = ({ isOpen, onClose, exam, availableGroups, onPublishSuc
 
         try {
             const payload = {
+                title: exam.title,
                 groupIds: selectedGroups,
-                start_time: startTime ? new Date(startTime).toISOString().slice(0, 19).replace('T', ' ') : null,
-                end_time: endTime ? new Date(endTime).toISOString().slice(0, 19).replace('T', ' ') : null,
+                start_time: toSqlLocalDateTime(startTime),
+                end_time: toSqlLocalDateTime(endTime),
+                duration_minutes: parsedDuration,
+                require_seb: requireSeb,
             };
 
-            await axiosInstance.post(`/teacher/exams/${exam.id}/publish`, payload);
-            
+            await axiosInstance.post(publishPath || `/teacher/exams/${exam.id}/publish`, payload);
+
             setIsPublishing(false);
             onPublishSuccess();
             onClose();
         } catch (err) {
             setIsPublishing(false);
-            console.error("Failed to publish exam", err);
-            setError(err.response?.data?.message || "Failed to publish exam.");
+            console.error('Failed to publish exam', err);
+            setError(err.response?.data?.message || 'Failed to publish exam.');
         }
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 transition-opacity">
-            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in-up">
-                {/* Header */}
-                <div className="flex justify-between items-center p-6 border-b border-gray-100">
+        <div className="modal-backdrop">
+            <div className="modal-panel max-w-2xl">
+                <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-5">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">Publish Exam</h2>
-                        <p className="text-sm text-gray-500 mt-1">{exam.title}</p>
+                        <p className="eyebrow !text-slate-400">Publishing</p>
+                        <h2 className="mt-2 text-xl font-extrabold text-slate-900">Publish Exam</h2>
+                        <p className="mt-1 text-sm text-slate-500">{exam.title}</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                        X
+                    <button onClick={onClose} className="ghost-button !rounded-xl !px-3 !py-2">
+                        <FiX />
                     </button>
                 </div>
 
-                {/* Body */}
-                <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6">
                     {error && (
-                        <div className="p-3 bg-red-100 text-red-700 text-sm rounded-lg">{error}</div>
+                        <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
                     )}
 
-                     {/* Time Window */}
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-gray-700">Time Window (Optional)</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs text-gray-500 mb-1">Available From</label>
-                                <input 
-                                    type="datetime-local" 
-                                    className="w-full text-sm p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                                    value={startTime}
-                                    onChange={(e) => setStartTime(e.target.value)}
+                    <div className="grid gap-5 md:grid-cols-2">
+                        <div className="md:col-span-2">
+                            <label className="label-text">Exam Duration</label>
+                            <div className="relative">
+                                <FiClock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="number"
+                                    min="1"
+                                    className="input-field pl-11"
+                                    value={durationMinutes}
+                                    onChange={(e) => setDurationMinutes(e.target.value)}
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs text-gray-500 mb-1">Available Until</label>
-                                <input 
-                                    type="datetime-local" 
-                                    className="w-full text-sm p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                                    value={endTime}
-                                    onChange={(e) => setEndTime(e.target.value)}
-                                />
-                            </div>
+                            <p className="mt-2 text-sm font-medium text-slate-500">Students will get this many minutes after they start their attempt.</p>
+                        </div>
+                        <div>
+                            <label className="label-text">Available From</label>
+                            <input type="datetime-local" className="input-field" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="label-text">Available Until</label>
+                            <input type="datetime-local" className="input-field" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                         </div>
                     </div>
 
-                    {/* Groups Selection */}
-                    <div className="space-y-3">
-                        <h3 className="font-semibold text-gray-700">Assign to Groups</h3>
+                    <label className="surface-muted flex cursor-pointer items-start gap-3 px-4 py-4">
+                        <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                            checked={requireSeb}
+                            onChange={(event) => setRequireSeb(event.target.checked)}
+                        />
+                        <span>
+                            <span className="block text-sm font-bold text-slate-800">Require Safe Exam Browser</span>
+                            <span className="mt-1 block text-sm text-slate-500">Students will need a signed `.seb` launch file and verified SEB session to start this exam.</span>
+                        </span>
+                    </label>
+
+                    <div>
+                        <label className="label-text">Assign to Groups</label>
                         {availableGroups.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-2">
-                                {availableGroups.map(group => (
-                                    <label key={group.id} className="flex items-center space-x-3 p-3 border border-gray-100 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors">
-                                        <input 
-                                            type="checkbox" 
-                                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                            <div className="grid gap-3">
+                                {availableGroups.map((group) => (
+                                    <label key={group.id} className="surface-muted flex cursor-pointer items-center gap-3 px-4 py-3">
+                                        <input
+                                            type="checkbox"
+                                            className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
                                             checked={selectedGroups.includes(group.id)}
                                             onChange={() => handleGroupToggle(group.id)}
                                         />
-                                        <span className="text-sm font-medium text-gray-700">{group.name}</span>
+                                        <span className="text-sm font-semibold text-slate-700">{group.name}</span>
                                     </label>
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-sm text-gray-500 italic p-4 bg-gray-50 rounded-lg text-center">
+                            <div className="surface-muted p-4 text-center text-sm text-slate-500">
                                 No groups available. Students must be enrolled in this module for groups to appear.
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="p-6 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50">
-                    <button 
-                        onClick={onClose}
-                        className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
-                        disabled={isPublishing}
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        onClick={handlePublish}
-                        disabled={isPublishing || selectedGroups.length === 0}
-                        className="flex items-center space-x-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-green-700 shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isPublishing ? "Publishing..." : "Publish to LIVE"}
+                <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50/80 px-6 py-5 sm:flex-row sm:justify-end">
+                    <button onClick={onClose} className="ghost-button" disabled={isPublishing}>Cancel</button>
+                    <button onClick={handlePublish} disabled={isPublishing || selectedGroups.length === 0} className="secondary-button">
+                        <FiGlobe />
+                        <span>{isPublishing ? 'Publishing...' : 'Publish to LIVE'}</span>
                     </button>
                 </div>
             </div>

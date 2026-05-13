@@ -18,7 +18,10 @@ const createMindmap = async (req, res) => {
             return res.status(400).json({ message: 'Material has no parsed chunks to generate a mindmap from.' });
         }
 
-        const mindmapData = await generateMindmap(material.title, chunks);
+        const mindmapData = await generateMindmap(material.title, chunks, {
+            teacherId: req.userId,
+            providerConfigId: material.mindmapProviderConfigId || null,
+        });
 
         // Upsert: replace existing mindmap for this material
         const mindmap = await MaterialMindmap.findOneAndUpdate(
@@ -26,10 +29,11 @@ const createMindmap = async (req, res) => {
             {
                 materialId: material._id,
                 teacherId: req.userId,
+                moduleId: material.moduleId,
                 title: mindmapData.title || material.title,
                 concepts: mindmapData.concepts || []
             },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         res.status(201).json(mindmap);

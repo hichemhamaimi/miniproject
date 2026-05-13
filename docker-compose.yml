@@ -1,17 +1,122 @@
-version: '3.8'
-
 services:
+  mysql:
+    image: mysql:8.4
+    container_name: exam_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-exam_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-university_exam_system}
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./dbs/sqldbscript.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  mongo:
+    image: mongo:7
+    container_name: exam_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: exam_redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   qdrant:
     image: qdrant/qdrant:latest
+    container_name: exam_qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     environment:
-      - QDRANT__SERVICE__GRPC_PORT=6334
-      - QDRANT__SERVICE__HTTP_PORT=6333
-    restart: always
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__SERVICE__HTTP_PORT: 6333
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    container_name: exam_backend
+    ports:
+      - "3500:3500"
+    environment:
+      PORT: 3500
+      DBHOST: mysql
+      DBPORT: 3306
+      DBUSER: root
+      DBPASSWORD: ${MYSQL_ROOT_PASSWORD:-exam_root_password}
+      DBNAME: ${MYSQL_DATABASE:-university_exam_system}
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-change_me_before_production}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-change_me_before_production}
+      MONGODB_URI: mongodb://mongo:27017/${MONGO_DB_NAME:-university_exam_system}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3500}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QDRANT_HOST: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-materials}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-transformers}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+      SEB_TOKEN_SECRET: ${SEB_TOKEN_SECRET:-change_me_before_production}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: exam_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3500}
+    depends_on:
+      backend:
+        condition: service_started
 
 volumes:
+  mysql_data:
+  mongo_data:
+  redis_data:
   qdrant_data:

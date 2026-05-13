@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axiosInstance';
-import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { FiEdit2, FiLayers, FiPlus, FiTrash2 } from 'react-icons/fi';
 
 const Departments = () => {
     const [departments, setDepartments] = useState([]);
     const [admins, setAdmins] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [modalMode, setModalMode] = useState(''); // 'create' or 'edit'
+    const [modalMode, setModalMode] = useState('');
     const [selectedDept, setSelectedDept] = useState(null);
     const [formData, setFormData] = useState({ name: '', abbreviation: '', department_admin_id: '' });
 
@@ -16,7 +16,7 @@ const Departments = () => {
             const depRes = await axiosInstance.get('/superadmin/departments');
             const usersRes = await axiosInstance.get('/superadmin/users');
             setDepartments(depRes.data);
-            setAdmins(usersRes.data.filter(u => u.role === 'department_admin'));
+            setAdmins(usersRes.data.filter((u) => u.role === 'department_admin'));
             setLoading(false);
         } catch (error) {
             console.error(error);
@@ -62,71 +62,100 @@ const Departments = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Manage Departments</h1>
-                    <p className="text-gray-500 mt-1">Create departments and assign administrators.</p>
+        <div className="space-y-8">
+            <header className="page-hero">
+                <p className="eyebrow">Department Administration</p>
+                <div className="mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <h1 className="page-title">Structure departments and assign responsible administrators with more confidence</h1>
+                        <p className="page-subtitle">The interface is cleaner, but all department creation, update, deletion, and assignment behavior remains unchanged.</p>
+                    </div>
+                    <button
+                        onClick={() => { setModalMode('create'); setShowModal(true); setFormData({ name: '', abbreviation: '', department_admin_id: admins.length > 0 ? admins[0].id : '' }); }}
+                        className="action-button self-start lg:self-auto"
+                    >
+                        <FiPlus />
+                        <span>New Department</span>
+                    </button>
                 </div>
-                <button 
-                    onClick={() => { setModalMode('create'); setShowModal(true); setFormData({ name: '', abbreviation: '', department_admin_id: admins.length > 0 ? admins[0].id : '' }); }}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition"
-                >
-                    <FaPlus /> New Department
-                </button>
             </header>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Abbreviation</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Admin</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {loading ? <tr><td colSpan="4" className="text-center py-4">Loading...</td></tr> : 
-                          departments.map(d => {
-                            const adminName = admins.find(a => a.id === d.department_admin_id)?.username || `ID: ${d.department_admin_id}`;
-                            return (
-                                <tr key={d.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{d.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{d.abbreviation}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">{adminName}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button onClick={() => openEditModal(d)} className="text-blue-600 hover:text-blue-900 mr-4" title="Edit Department"><FaEdit className="inline" /></button>
-                                        <button onClick={() => deleteDept(d.id)} className="text-red-600 hover:text-red-900" title="Delete Department"><FaTrash className="inline" /></button>
-                                    </td>
+            <div className="surface-card overflow-hidden">
+                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+                    <div>
+                        <h2 className="text-lg font-extrabold text-slate-900">Departments</h2>
+                        <p className="mt-1 text-sm text-slate-500">{departments.length} configured department(s)</p>
+                    </div>
+                    <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 md:flex">
+                        <FiLayers className="text-xl" />
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead className="bg-slate-50/80">
+                            <tr>
+                                <th className="table-header-cell">Name</th>
+                                <th className="table-header-cell">Abbreviation</th>
+                                <th className="table-header-cell">Assigned Admin</th>
+                                <th className="table-header-cell text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="4" className="table-cell py-10 text-center text-slate-500">Loading departments...</td>
                                 </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                            ) : (
+                                departments.map((d) => {
+                                    const adminName = admins.find((a) => a.id === d.department_admin_id)?.username || `ID: ${d.department_admin_id}`;
+
+                                    return (
+                                        <tr key={d.id} className="table-row">
+                                            <td className="table-cell font-bold text-slate-900">{d.name}</td>
+                                            <td className="table-cell"><span className="status-badge border-slate-200 bg-slate-100 text-slate-700">{d.abbreviation}</span></td>
+                                            <td className="table-cell font-medium text-cyan-700">{adminName}</td>
+                                            <td className="table-cell">
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => openEditModal(d)} className="ghost-button !rounded-xl !px-3 !py-2" title="Edit Department"><FiEdit2 /></button>
+                                                    <button onClick={() => deleteDept(d.id)} className="danger-button !rounded-xl !px-3 !py-2" title="Delete Department"><FiTrash2 /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4">{modalMode === 'create' ? 'Create New Department' : 'Edit Department'}</h2>
-                        <form onSubmit={handleFormSubmit} className="space-y-4">
-                            <div><label className="block text-sm font-medium">Department Name</label><input required value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="mt-1 w-full border rounded-md p-2" /></div>
-                            <div><label className="block text-sm font-medium">Abbreviation</label><input required value={formData.abbreviation} onChange={e=>setFormData({...formData, abbreviation: e.target.value})} className="mt-1 w-full border rounded-md p-2" /></div>
+                <div className="modal-backdrop">
+                    <div className="modal-panel max-w-xl">
+                        <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-5">
+                            <h2 className="text-xl font-extrabold text-slate-900">{modalMode === 'create' ? 'Create New Department' : 'Edit Department'}</h2>
+                        </div>
+                        <form onSubmit={handleFormSubmit} className="space-y-5 p-6">
                             <div>
-                                <label className="block text-sm font-medium text-indigo-600">Assign Department Admin</label>
-                                <select required value={formData.department_admin_id} onChange={e=>setFormData({...formData, department_admin_id: e.target.value})} className="mt-1 w-full border border-indigo-300 rounded-md p-2 focus:ring focus:ring-indigo-200">
+                                <label className="label-text">Department Name</label>
+                                <input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input-field" />
+                            </div>
+                            <div>
+                                <label className="label-text">Abbreviation</label>
+                                <input required value={formData.abbreviation} onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })} className="input-field" />
+                            </div>
+                            <div>
+                                <label className="label-text">Assign Department Admin</label>
+                                <select required value={formData.department_admin_id} onChange={(e) => setFormData({ ...formData, department_admin_id: e.target.value })} className="select-field">
                                     <option value="" disabled>Select an Admin</option>
-                                    {admins.map(a => (
+                                    {admins.map((a) => (
                                         <option key={a.id} value={a.id}>{a.name} {a.lastname} ({a.username})</option>
                                     ))}
                                 </select>
                             </div>
-                            
-                            <div className="flex gap-4 mt-6">
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium">Cancel</button>
-                                <button type="submit" className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium">{modalMode === 'create' ? 'Create' : 'Save Changes'}</button>
+                            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                                <button type="button" onClick={() => setShowModal(false)} className="ghost-button">Cancel</button>
+                                <button type="submit" className="action-button">{modalMode === 'create' ? 'Create Department' : 'Save Changes'}</button>
                             </div>
                         </form>
                     </div>

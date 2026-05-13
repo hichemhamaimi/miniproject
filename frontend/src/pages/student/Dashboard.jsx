@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
-import { FaPlayCircle, FaCheckCircle, FaClock, FaDownload } from 'react-icons/fa';
-import { FiAward } from 'react-icons/fi';
+import { formatAppDateTime, parseAppDateTime } from '../../utils/dateTime';
+import { FiAward, FiCheckCircle, FiClock, FiDownload, FiPlayCircle } from 'react-icons/fi';
 
 const Dashboard = () => {
     const { user } = useAuth();
@@ -19,8 +19,8 @@ const Dashboard = () => {
                 setExams(response.data);
                 setLoading(false);
             } catch (err) {
-                console.error("Error fetching exams", err);
-                setError("Failed to load available exams.");
+                console.error('Error fetching exams', err);
+                setError('Failed to load available exams.');
                 setLoading(false);
             }
         };
@@ -31,28 +31,26 @@ const Dashboard = () => {
     }, [user]);
 
     if (user?.role !== 'student') {
-        return <div className="p-8 text-center text-red-500 font-semibold">Access Denied</div>;
+        return <div className="surface-card p-8 text-center font-semibold text-red-500">Access denied.</div>;
     }
 
     const handleEnterExam = (exam) => {
-        // Warning about Safe Exam Browser
-        const confirmed = window.confirm(
-            "This exam requires Safe Exam Browser (SEB).\nIf you are not using SEB, your access will be blocked.\n\nContinue?"
-        );
-        if (confirmed) {
-            navigate(`/student/exams/${exam.id}`);
+        if (exam.require_seb) {
+            handleDownloadSeb(exam);
+            return;
         }
+        navigate(`/student/exams/${exam.id}`);
     };
 
     const handleDownloadSeb = async (exam) => {
         try {
             const response = await axiosInstance.get(`/student/exams/${exam.id}/seb`, {
-                responseType: 'blob'
+                responseType: 'blob',
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            
+
             let filename = `${exam.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.seb`;
             const contentDisposition = response.headers['content-disposition'];
             if (contentDisposition) {
@@ -61,125 +59,156 @@ const Dashboard = () => {
                     filename = filenameMatch[1];
                 }
             }
-            
+
             link.setAttribute('download', filename);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         } catch (err) {
-            console.error("Error downloading SEB file", err);
-            alert("Failed to download SEB file.");
+            console.error('Error downloading SEB file', err);
+            alert('Failed to download SEB file.');
         }
     };
 
     return (
-        <div className="space-y-6">
-            <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
-                    <p className="text-gray-500 mt-1">Welcome, {user.username}. Here are your assigned exams.</p>
+        <div className="space-y-8">
+            <header className="page-hero">
+                <p className="eyebrow">Student Workspace</p>
+                <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <h1 className="page-title">A cleaner, more focused place to take your assigned exams</h1>
+                        <p className="page-subtitle">
+                            Your dashboard now emphasizes clarity, timing, and the next action, keeping attention on exam readiness instead of interface clutter.
+                        </p>
+                    </div>
+                    <Link to="/student/results" className="secondary-button self-start lg:self-auto">
+                        <FiAward />
+                        <span>My Results</span>
+                    </Link>
                 </div>
-                <Link to="/student/results" className="mt-4 md:mt-0 flex items-center gap-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold shadow hover:shadow-md transition text-sm">
-                    <FiAward /> My Results
-                </Link>
             </header>
 
             {loading ? (
-                <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-indigo-600"></div>
+                <div className="flex justify-center py-16">
+                    <div className="h-12 w-12 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent"></div>
                 </div>
             ) : error ? (
-                <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl">{error}</div>
+                <div className="surface-card border-red-200 p-4 text-red-600">{error}</div>
+            ) : exams.length === 0 ? (
+                <div className="empty-state">
+                    <p className="text-lg font-bold text-slate-700">No exams currently available</p>
+                    <p className="mt-2 text-sm text-slate-500">When a teacher publishes an exam for your groups, it will appear here.</p>
+                </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {exams.length === 0 ? (
-                        <div className="col-span-full bg-white p-12 rounded-2xl border border-gray-100 text-center text-gray-500 shadow-sm">
-                            <span className="text-4xl block mb-4">☕</span>
-                            No exams currently available. Relax!
-                        </div>
-                    ) : (
-                        exams.map(exam => {
-                            const isSubmitted = exam.attempt_status === 'SUBMITTED' || exam.attempt_status === 'EXPIRED';
-                            const isOngoing = exam.attempt_status === 'ONGOING';
-                            
-                            const now = new Date();
-                            const hasStarted = !exam.start_time || new Date(exam.start_time) <= now;
-                            const hasEnded = exam.end_time && new Date(exam.end_time) < now;
-                            const isAvailable = hasStarted && !hasEnded;
+                <div className="grid gap-5 xl:grid-cols-2">
+                    {exams.map((exam) => {
+                        const isSubmitted = exam.attempt_status === 'SUBMITTED' || exam.attempt_status === 'EXPIRED';
+                        const isOngoing = exam.attempt_status === 'ONGOING';
 
-                            return (
-                                <div key={exam.id} className={`bg-white rounded-2xl border shadow-sm p-6 transition-all ${
-                                    isSubmitted ? 'border-gray-200 opacity-75' : 'border-indigo-100 hover:border-indigo-300 hover:shadow-md'
-                                }`}>
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 mb-2">
-                                                {exam.module_name} ({exam.module_abbreviation})
-                                            </div>
-                                            <h3 className="text-lg font-bold text-gray-800">{exam.title}</h3>
-                                        </div>
-                                        {isSubmitted && (
-                                            <span className="text-green-500" title="Completed"><FaCheckCircle className="w-6 h-6" /></span>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="flex items-center space-x-6 text-sm text-gray-500 mb-6">
-                                        <div className="flex items-center space-x-2">
-                                            <FaClock className="text-gray-400" />
-                                            <span>{exam.duration_minutes} Minutes</span>
-                                        </div>
-                                        {exam.start_time && (
-                                            <div>Valid from: {new Date(exam.start_time).toLocaleDateString()}</div>
-                                        )}
-                                    </div>
+                        const now = new Date();
+                        const startAt = parseAppDateTime(exam.start_time);
+                        const endAt = parseAppDateTime(exam.end_time);
+                        const hasStarted = !startAt || startAt <= now;
+                        const hasEnded = endAt && endAt < now;
 
-                                    <div className="flex items-center">
-                                        {isSubmitted ? (
-                                            <span className="px-4 py-2 bg-gray-100 text-gray-600 font-medium rounded-xl text-sm w-full text-center">
-                                                Already Submitted
-                                            </span>
-                                        ) : !hasStarted ? (
-                                            <span className="px-4 py-2 bg-gray-100 text-gray-600 font-medium rounded-xl text-sm w-full text-center">
-                                                Exam has not started yet
-                                            </span>
-                                        ) : hasEnded ? (
-                                            <span className="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-xl text-sm w-full text-center">
-                                                Exam has ended
-                                            </span>
-                                        ) : (
-                                            <div className="flex flex-1 space-x-3">
-                                                <button 
-                                                    onClick={() => handleDownloadSeb(exam)}
-                                                    className="flex justify-center items-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors border border-slate-200"
-                                                    title="Download SEB Configuration"
-                                                >
-                                                    <FaDownload />
-                                                    <span className="hidden sm:inline">SEB File</span>
-                                                </button>
-                                                {isOngoing ? (
-                                                    <button 
-                                                        onClick={() => navigate(`/student/exams/${exam.id}`)}
-                                                        className="flex-1 flex justify-center items-center space-x-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors"
-                                                    >
-                                                        <FaPlayCircle />
-                                                        <span>Resume Exam</span>
-                                                    </button>
-                                                ) : (
-                                                    <button 
-                                                        onClick={() => handleEnterExam(exam)}
-                                                        className="flex-1 flex justify-center items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition-colors"
-                                                    >
-                                                        <FaPlayCircle />
-                                                        <span>Start Exam</span>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
+                        const statusLabel = isSubmitted
+                            ? 'Completed'
+                            : !hasStarted
+                                ? 'Scheduled'
+                                : hasEnded
+                                    ? 'Closed'
+                                    : isOngoing
+                                        ? 'In progress'
+                                        : 'Available';
+
+                        return (
+                            <div
+                                key={exam.id}
+                                className={`surface-card p-6 transition duration-200 ${
+                                    isSubmitted ? 'opacity-80' : 'hover:-translate-y-1 hover:shadow-[0_26px_80px_rgba(15,23,42,0.12)]'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <span className="status-badge border-cyan-200 bg-cyan-50 text-cyan-700">
+                                            {exam.module_name} ({exam.module_abbreviation})
+                                        </span>
+                                        <h3 className="mt-4 text-xl font-extrabold tracking-tight text-slate-900">{exam.title}</h3>
+                                        <p className="mt-2 text-sm font-semibold text-slate-500">{statusLabel}</p>
+                                        <div className="mt-3 space-y-1 text-sm text-slate-500">
+                                            <p>{startAt ? `Opens at ${formatAppDateTime(startAt)}` : 'Opens immediately'}</p>
+                                            <p>{endAt ? `Closes at ${formatAppDateTime(endAt)}` : 'No closing date configured'}</p>
+                                        </div>
+                                    </div>
+                                    {isSubmitted ? (
+                                        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                                            <FiCheckCircle className="text-xl" />
+                                        </span>
+                                    ) : null}
+                                </div>
+
+                                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                                    <div className="surface-muted flex items-center gap-3 px-4 py-3">
+                                        <FiClock className="text-cyan-600" />
+                                        <span className="text-sm font-semibold text-slate-700">{exam.duration_minutes} minutes</span>
+                                    </div>
+                                    <div className="surface-muted px-4 py-3 text-sm font-semibold text-slate-700">
+                                        {startAt ? `Starts ${formatAppDateTime(startAt)}` : 'Available immediately'}
                                     </div>
                                 </div>
-                            );
-                        })
-                    )}
+
+                                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                                    {!isSubmitted && hasStarted && !hasEnded ? (
+                                        <>
+                                            {exam.require_seb ? (
+                                                <div className="w-full space-y-3">
+                                                    <button
+                                                        onClick={() => handleDownloadSeb(exam)}
+                                                        className="action-button w-full"
+                                                        title="Download SEB Configuration"
+                                                    >
+                                                        <FiDownload />
+                                                        <span>Download SEB File</span>
+                                                    </button>
+                                                    <div className="surface-muted w-full px-4 py-3 text-center text-sm font-semibold text-slate-600">
+                                                        Download the file in your normal browser, open it with Safe Exam Browser, then click Start inside SEB.
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {isOngoing ? (
+                                                        <button
+                                                            onClick={() => navigate(`/student/exams/${exam.id}`)}
+                                                            className="secondary-button flex-1"
+                                                        >
+                                                            <FiPlayCircle />
+                                                            <span>Resume Exam</span>
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleEnterExam(exam)}
+                                                            className="action-button flex-1"
+                                                        >
+                                                            <FiPlayCircle />
+                                                            <span>Start Exam</span>
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="surface-muted w-full px-4 py-3 text-center text-sm font-semibold text-slate-600">
+                                            {isSubmitted
+                                                ? 'Already submitted'
+                                                : !hasStarted
+                                                    ? `Upcoming exam. Opens at ${formatAppDateTime(startAt)}`
+                                                    : `Exam closed at ${formatAppDateTime(endAt)}`}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>

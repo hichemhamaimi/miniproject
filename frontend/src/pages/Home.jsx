@@ -26,8 +26,14 @@ const Home = () => {
     }
 
     return (
-        <div className="text-center py-20 text-gray-500 text-xl">
-            Welcome to ExamQ. Please login.
+        <div className="mx-auto flex max-w-5xl items-center justify-center px-4 py-16 md:py-24">
+            <div className="page-hero w-full text-center">
+                <p className="eyebrow">QCM Management Platform</p>
+                <h1 className="page-title">Professional exam generation for teachers, students, and administrators</h1>
+                <p className="page-subtitle mx-auto">
+                    Securely create assessments, manage academic structure, publish exam sessions, and review results in one streamlined workspace.
+                </p>
+            </div>
         </div>
     );
 };

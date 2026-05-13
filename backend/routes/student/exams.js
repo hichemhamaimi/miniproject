@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const examTakingController = require('../../controllers/student/examTakingController');
 const verifyJWT = require('../../middleware/verifyJWT');
+const verifyRoles = require('../../middleware/verifyRoles');
 const verifySEB = require('../../middleware/verifySEB');
 
 router.use(verifyJWT);
+router.use(verifyRoles('student'));
 
 // Get available exams for the logged in student
 router.get('/', examTakingController.getAvailableExams);

@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const pool = mysql2.createPool({
   host: process.env.DBHOST,
+  port: Number.parseInt(process.env.DBPORT || '3306', 10),
   user: process.env.DBUSER,
   password: process.env.DBPASSWORD,
   database: process.env.DBNAME,

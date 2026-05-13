@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axiosInstance';
-import { FaPlus, FaKey, FaTrash } from 'react-icons/fa';
+import { FiKey, FiPlus, FiTrash2, FiUserPlus, FiUsers } from 'react-icons/fi';
+
+const roleTone = {
+    teacher: 'border-blue-200 bg-blue-50 text-blue-700',
+    student: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    department_admin: 'border-violet-200 bg-violet-50 text-violet-700',
+    superadmin: 'border-slate-200 bg-slate-100 text-slate-700',
+};
+
+const initialForm = { name: '', lastname: '', username: '', date_of_birth: '', role: 'teacher', password: '' };
 
 const Users = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [modalMode, setModalMode] = useState(''); // 'create' or 'password'
+    const [modalMode, setModalMode] = useState('');
     const [selectedUser, setSelectedUser] = useState(null);
-    const [formData, setFormData] = useState({ name: '', lastname: '', username: '', date_of_birth: '', role: 'teacher', password: '' });
+    const [formData, setFormData] = useState(initialForm);
 
     const fetchUsers = async () => {
         try {
@@ -35,7 +44,7 @@ const Users = () => {
             }
             setShowModal(false);
             fetchUsers();
-            setFormData({ name: '', lastname: '', username: '', date_of_birth: '', role: 'teacher', password: '' });
+            setFormData(initialForm);
         } catch (error) {
             alert(error.response?.data?.message || 'Action failed');
         }
@@ -52,72 +61,131 @@ const Users = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Manage Users</h1>
-                    <p className="text-gray-500 mt-1">Add users, change passwords, and manage access.</p>
+        <div className="space-y-8">
+            <header className="page-hero">
+                <p className="eyebrow">User Administration</p>
+                <div className="mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <h1 className="page-title">Manage platform identities with clearer actions and cleaner tables</h1>
+                        <p className="page-subtitle">Create user accounts, rotate passwords, and remove access without changing any underlying admin flows.</p>
+                    </div>
+                    <button
+                        onClick={() => { setModalMode('create'); setShowModal(true); setFormData({ ...initialForm, password: '' }); }}
+                        className="action-button self-start lg:self-auto"
+                    >
+                        <FiPlus />
+                        <span>New User</span>
+                    </button>
                 </div>
-                <button 
-                    onClick={() => { setModalMode('create'); setShowModal(true); setFormData({...formData, password: ''}); }}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition"
-                >
-                    <FaPlus /> New User
-                </button>
             </header>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {loading ? <tr><td colSpan="4" className="text-center py-4">Loading...</td></tr> : 
-                          users.map(u => (
-                            <tr key={u.id}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{u.name} {u.lastname}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{u.username}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">{u.role}</span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <button 
-                                        onClick={() => { setSelectedUser(u); setModalMode('password'); setShowModal(true); setFormData({...formData, password: ''}); }} 
-                                        className="text-yellow-600 hover:text-yellow-900 mr-4" title="Reset Password"
-                                    ><FaKey className="inline" /></button>
-                                    <button 
-                                        onClick={() => deleteUser(u.id)} 
-                                        className="text-red-600 hover:text-red-900" title="Delete User"
-                                    ><FaTrash className="inline" /></button>
-                                </td>
+            <div className="surface-card overflow-hidden">
+                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+                    <div>
+                        <h2 className="text-lg font-extrabold text-slate-900">Users</h2>
+                        <p className="mt-1 text-sm text-slate-500">{users.length} total account(s)</p>
+                    </div>
+                    <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white md:flex">
+                        <FiUsers className="text-xl" />
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead className="bg-slate-50/80">
+                            <tr>
+                                <th className="table-header-cell">Name</th>
+                                <th className="table-header-cell">Username</th>
+                                <th className="table-header-cell">Role</th>
+                                <th className="table-header-cell text-right">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="4" className="table-cell py-10 text-center text-slate-500">Loading users...</td>
+                                </tr>
+                            ) : (
+                                users.map((u) => (
+                                    <tr key={u.id} className="table-row">
+                                        <td className="table-cell">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white">
+                                                    {(u.name?.[0] || 'U')}{(u.lastname?.[0] || '')}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-900">{u.name} {u.lastname}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="table-cell font-medium text-slate-600">{u.username}</td>
+                                        <td className="table-cell">
+                                            <span className={`status-badge ${roleTone[u.role] || 'border-slate-200 bg-slate-100 text-slate-700'}`}>
+                                                {u.role}
+                                            </span>
+                                        </td>
+                                        <td className="table-cell">
+                                            <div className="flex justify-end gap-2">
+                                                <button
+                                                    onClick={() => { setSelectedUser(u); setModalMode('password'); setShowModal(true); setFormData({ ...formData, password: '' }); }}
+                                                    className="ghost-button !rounded-xl !px-3 !py-2"
+                                                    title="Reset Password"
+                                                >
+                                                    <FiKey />
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteUser(u.id)}
+                                                    className="danger-button !rounded-xl !px-3 !py-2"
+                                                    title="Delete User"
+                                                >
+                                                    <FiTrash2 />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4">{modalMode === 'create' ? 'Create New User' : `Reset Password for ${selectedUser.username}`}</h2>
-                        <form onSubmit={handleFormSubmit} className="space-y-4">
+                <div className="modal-backdrop">
+                    <div className="modal-panel max-w-2xl">
+                        <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-5">
+                            <h2 className="text-xl font-extrabold text-slate-900">
+                                {modalMode === 'create' ? 'Create New User' : `Reset Password for ${selectedUser.username}`}
+                            </h2>
+                            <p className="mt-1 text-sm text-slate-500">
+                                {modalMode === 'create' ? 'Add a new account to the platform.' : 'Set a new password for this user.'}
+                            </p>
+                        </div>
+                        <form onSubmit={handleFormSubmit} className="space-y-5 p-6">
                             {modalMode === 'create' && (
                                 <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="block text-sm font-medium">First Name</label><input required value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="mt-1 w-full border rounded-md p-2" /></div>
-                                        <div><label className="block text-sm font-medium">Last Name</label><input required value={formData.lastname} onChange={e=>setFormData({...formData, lastname: e.target.value})} className="mt-1 w-full border rounded-md p-2" /></div>
+                                    <div className="grid gap-5 md:grid-cols-2">
+                                        <div>
+                                            <label className="label-text">First Name</label>
+                                            <input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input-field" />
+                                        </div>
+                                        <div>
+                                            <label className="label-text">Last Name</label>
+                                            <input required value={formData.lastname} onChange={(e) => setFormData({ ...formData, lastname: e.target.value })} className="input-field" />
+                                        </div>
                                     </div>
-                                    <div><label className="block text-sm font-medium">Username</label><input required value={formData.username} onChange={e=>setFormData({...formData, username: e.target.value})} className="mt-1 w-full border rounded-md p-2" /></div>
-                                    <div><label className="block text-sm font-medium">Date of Birth</label><input type="date" required value={formData.date_of_birth} onChange={e=>setFormData({...formData, date_of_birth: e.target.value})} className="mt-1 w-full border rounded-md p-2" /></div>
+                                    <div className="grid gap-5 md:grid-cols-2">
+                                        <div>
+                                            <label className="label-text">Username</label>
+                                            <input required value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} className="input-field" />
+                                        </div>
+                                        <div>
+                                            <label className="label-text">Date of Birth</label>
+                                            <input type="date" required value={formData.date_of_birth} onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })} className="input-field" />
+                                        </div>
+                                    </div>
                                     <div>
-                                        <label className="block text-sm font-medium">Role</label>
-                                        <select value={formData.role} onChange={e=>setFormData({...formData, role: e.target.value})} className="mt-1 w-full border rounded-md p-2">
+                                        <label className="label-text">Role</label>
+                                        <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className="select-field">
                                             <option value="teacher">Teacher</option>
                                             <option value="student">Student</option>
                                             <option value="department_admin">Department Admin</option>
@@ -127,12 +195,15 @@ const Users = () => {
                                 </>
                             )}
                             <div>
-                                <label className="block text-sm font-medium">{modalMode === 'create' ? 'Password' : 'New Password'}</label>
-                                <input required type="password" value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} className="mt-1 w-full border rounded-md p-2" />
+                                <label className="label-text">{modalMode === 'create' ? 'Password' : 'New Password'}</label>
+                                <input required type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="input-field" />
                             </div>
-                            <div className="flex gap-4 mt-6">
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium">Cancel</button>
-                                <button type="submit" className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium">{modalMode === 'create' ? 'Create' : 'Update Password'}</button>
+                            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                                <button type="button" onClick={() => setShowModal(false)} className="ghost-button">Cancel</button>
+                                <button type="submit" className="action-button">
+                                    <FiUserPlus />
+                                    <span>{modalMode === 'create' ? 'Create User' : 'Update Password'}</span>
+                                </button>
                             </div>
                         </form>
                     </div>

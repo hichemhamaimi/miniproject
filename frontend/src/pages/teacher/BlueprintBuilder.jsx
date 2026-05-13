@@ -33,7 +33,7 @@ const defaultScoring = () => Object.fromEntries(
 const Stepper = ({ step }) => {
     const steps = ['Question Types', 'Difficulty', 'Scoring', 'Instructions'];
     return (
-        <div className="flex items-center gap-2 mb-6">
+        <div className="sticky-under-shell-topbar mb-6 flex items-center gap-2 rounded-2xl border border-slate-100 bg-white/95 p-3 shadow-lg backdrop-blur">
             {steps.map((s, i) => (
                 <React.Fragment key={s}>
                     <div className={`flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-full transition-all

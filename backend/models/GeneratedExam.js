@@ -31,15 +31,19 @@ const generatedQuestionSchema = new Schema({
 
 const generatedExamSchema = new Schema({
     teacherId: { type: Number, required: true, index: true },
+    moduleId: { type: Number, required: true, index: true },
     blueprintId: { type: Schema.Types.ObjectId, ref: 'ExamBlueprint' },
     title: { type: String, required: true },
     questions: { type: [generatedQuestionSchema], default: [] },
+    materialIds: { type: [Schema.Types.ObjectId], default: [] },
+    selectedConcepts: { type: [String], default: [] },
     status: {
         type: String,
         enum: ['draft', 'published'],
         default: 'draft'
     },
     publishedAt: { type: Date },
+    publishedExamId: { type: Number },
     scoringDefaults: {
         correct: { type: Number, default: 1 },
         incorrect: { type: Number, default: -0.5 },

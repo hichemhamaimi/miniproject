@@ -5,12 +5,12 @@ import { FiRefreshCw, FiMapPin, FiArrowRight, FiChevronDown, FiChevronRight } fr
 
 // ─── Recursive tree node component ───────────────────────────────────────────
 const ConceptNode = ({ node, depth = 0, selected, onToggle }) => {
-    const [open, setOpen] = useState(depth < 2);
+    const [open, setOpen] = useState(depth < 1);
     const hasChildren = node.children && node.children.length > 0;
     const isSelected = selected.has(node.name);
 
     return (
-        <div className={`ml-${depth > 0 ? 5 : 0}`} style={{ marginLeft: depth > 0 ? `${depth * 20}px` : 0 }}>
+        <div style={{ marginLeft: depth > 0 ? `${depth * 20}px` : 0 }}>
             <div
                 className={`flex items-center gap-2 py-1.5 px-3 rounded-xl cursor-pointer transition-all group
                     ${isSelected ? 'bg-violet-100 border border-violet-300' : 'hover:bg-slate-100'}`}

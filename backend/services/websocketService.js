@@ -1,5 +1,6 @@
 const { Server } = require("socket.io");
 const pool = require('../config/dbConnect');
+const runtimeConfig = require('../config/runtime.config');
 
 let io; // Hold the socket.io instance globally
 
@@ -12,7 +13,7 @@ const activeTimers = {};
 const initWebSockets = (server) => {
     io = new Server(server, {
         cors: {
-            origin: "http://localhost:5173", // URL of your frontend
+            origin: runtimeConfig.corsAllowedOrigins,
             methods: ["GET", "POST"]
         }
     });

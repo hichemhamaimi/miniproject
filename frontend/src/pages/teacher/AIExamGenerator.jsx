@@ -1,68 +1,150 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { FiAlertCircle, FiCheckCircle, FiClock, FiLoader, FiRefreshCw } from 'react-icons/fi';
 import axiosInstance from '../../utils/axiosInstance';
-import { FiCpu, FiCheckCircle, FiAlertCircle, FiLoader, FiClock } from 'react-icons/fi';
 
 const POLL_INTERVAL_MS = 3000;
 
-const StatusStep = ({ active, done, label, icon }) => (
-    <div className={`flex items-center gap-3 p-4 rounded-2xl transition-all ${active ? 'bg-violet-50 border-2 border-violet-400' : done ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}`}>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0
-            ${active ? 'bg-violet-600 text-white animate-pulse' : done ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+const StatusStep = ({ label, active, done, icon }) => (
+    <div className={`flex items-center gap-3 rounded-2xl border p-4 transition-all ${
+        active
+            ? 'border-cyan-300 bg-cyan-50'
+            : done
+                ? 'border-emerald-200 bg-emerald-50'
+                : 'border-slate-200 bg-slate-50'
+    }`}>
+        <div className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${
+            active
+                ? 'bg-cyan-600 text-white'
+                : done
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-white text-slate-400'
+        }`}>
             {icon}
         </div>
-        <span className={`font-semibold text-sm ${active ? 'text-violet-800' : done ? 'text-emerald-700' : 'text-slate-500'}`}>{label}</span>
+        <span className={`text-sm font-semibold ${
+            active
+                ? 'text-cyan-800'
+                : done
+                    ? 'text-emerald-700'
+                    : 'text-slate-500'
+        }`}>
+            {label}
+        </span>
     </div>
 );
 
 const AIExamGenerator = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { blueprintId, jobId: initJobId } = location.state || {};
-
-    const [jobId, setJobId] = useState(initJobId || null);
-    const [jobStatus, setJobStatus] = useState('idle');
-    const [error, setError] = useState('');
-    const [resultExamId, setResultExamId] = useState(null);
     const pollRef = useRef(null);
+    const autoStartedRef = useRef(false);
+    const { blueprintId, jobId: initialJobId, moduleId, workflowSummary } = location.state || {};
 
-    const startGeneration = useCallback(async () => {
-        if (!blueprintId) { setError('No blueprint ID provided.'); return; }
-        try {
-            setJobStatus('queued');
-            const res = await axiosInstance.post('/teacher/ai-exams/generate', { blueprintId });
-            setJobId(res.data.jobId);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to start generation.');
-            setJobStatus('failed');
-        }
+    const [jobId, setJobId] = useState(initialJobId || null);
+    const [jobStatus, setJobStatus] = useState(initialJobId ? 'queued' : 'idle');
+    const [resultExamId, setResultExamId] = useState(null);
+    const [error, setError] = useState('');
+    const [aiOptions, setAiOptions] = useState({ llmProviders: [], defaultLlmProviderId: null });
+    const [selectedExamProviderConfigId, setSelectedExamProviderConfigId] = useState('');
+    const [loadingAiOptions, setLoadingAiOptions] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadProviderChoice = async () => {
+            if (!blueprintId) return;
+            setLoadingAiOptions(true);
+            try {
+                const [optionsResponse, blueprintResponse] = await Promise.all([
+                    axiosInstance.get('/teacher/ai-options'),
+                    axiosInstance.get(`/teacher/blueprints/${blueprintId}`),
+                ]);
+                if (!active) return;
+
+                const options = optionsResponse.data || { llmProviders: [], defaultLlmProviderId: null };
+                const savedProviderId = blueprintResponse.data?.generationContext?.examProviderConfigId;
+                setAiOptions(options);
+                setSelectedExamProviderConfigId(savedProviderId ? String(savedProviderId) : (options.defaultLlmProviderId ? String(options.defaultLlmProviderId) : ''));
+            } catch {
+                if (active) {
+                    setAiOptions({ llmProviders: [], defaultLlmProviderId: null });
+                }
+            } finally {
+                if (active) {
+                    setLoadingAiOptions(false);
+                }
+            }
+        };
+
+        loadProviderChoice();
+        return () => {
+            active = false;
+        };
     }, [blueprintId]);
 
-    const pollStatus = useCallback(async (id) => {
+    const selectedExamProvider = aiOptions.llmProviders.find((provider) => (
+        String(provider.id) === String(selectedExamProviderConfigId)
+    ));
+
+    const startGeneration = useCallback(async ({ includeProviderOverride = false } = {}) => {
+        if (!blueprintId) {
+            setError('No blueprint was provided for generation.');
+            setJobStatus('failed');
+            return;
+        }
+
         try {
-            const res = await axiosInstance.get(`/teacher/ai-exams/job/${id}`);
-            const { status, resultExamId: rid, error: jobErr } = res.data;
+            setError('');
+            setJobStatus('queued');
+            const payload = { blueprintId };
+            if (includeProviderOverride) {
+                payload.examProviderConfigId = selectedExamProviderConfigId ? Number(selectedExamProviderConfigId) : null;
+            }
+            const response = await axiosInstance.post('/teacher/ai-exams/generate', payload);
+            setJobId(response.data.jobId);
+        } catch (requestError) {
+            setError(requestError.response?.data?.message || 'Failed to start exam generation.');
+            setJobStatus('failed');
+        }
+    }, [blueprintId, selectedExamProviderConfigId]);
+
+    const pollStatus = useCallback(async (activeJobId) => {
+        try {
+            const response = await axiosInstance.get(`/teacher/ai-exams/job/${activeJobId}`);
+            const { status, resultExamId: generatedExamId, error: jobError } = response.data;
             setJobStatus(status);
-            if (status === 'done' && rid) {
-                setResultExamId(rid);
-                clearInterval(pollRef.current);
+
+            if (status === 'done' && generatedExamId) {
+                setResultExamId(generatedExamId);
+                window.clearInterval(pollRef.current);
             }
+
             if (status === 'failed') {
-                setError(jobErr || 'Generation failed.');
-                clearInterval(pollRef.current);
+                setError(jobError || 'Generation failed.');
+                window.clearInterval(pollRef.current);
             }
-        } catch { /* silent */ }
+        } catch {
+            // Keep polling quietly unless the job itself fails.
+        }
     }, []);
 
     useEffect(() => {
-        if (!initJobId && blueprintId) { startGeneration(); }
-        else if (initJobId) { setJobStatus('queued'); }
-    }, []);
+        if (!initialJobId && blueprintId && !autoStartedRef.current) {
+            autoStartedRef.current = true;
+            startGeneration();
+        }
+    }, [blueprintId, initialJobId, startGeneration]);
 
     useEffect(() => {
-        if (!jobId) return;
-        pollRef.current = setInterval(() => pollStatus(jobId), POLL_INTERVAL_MS);
-        return () => clearInterval(pollRef.current);
+        if (!jobId) return undefined;
+
+        pollStatus(jobId);
+        pollRef.current = window.setInterval(() => {
+            pollStatus(jobId);
+        }, POLL_INTERVAL_MS);
+
+        return () => window.clearInterval(pollRef.current);
     }, [jobId, pollStatus]);
 
     const isQueued = jobStatus === 'queued';
@@ -71,66 +153,132 @@ const AIExamGenerator = () => {
     const isFailed = jobStatus === 'failed';
 
     return (
-        <div className="max-w-2xl mx-auto space-y-8 pb-16">
-            <header className="bg-gradient-to-r from-violet-700 to-indigo-700 p-8 rounded-3xl shadow-xl text-white text-center">
-                <FiCpu className="text-5xl mx-auto mb-4 opacity-80 animate-pulse" />
-                <h1 className="text-3xl font-extrabold">AI Exam Generator</h1>
-                <p className="text-indigo-200 mt-2">Your exam is being crafted by AI…</p>
-            </header>
+        <div className="mx-auto max-w-3xl space-y-8 pb-16">
+            <header className="page-hero">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p className="eyebrow">Generation</p>
+                        <h1 className="page-title">Building the exam draft</h1>
+                        <p className="page-subtitle">
+                            The system is generating the draft that will feed Step 6, where the teacher can review, edit, and publish the final exam.
+                        </p>
+                    </div>
+                    {moduleId ? (
+                        <Link to={`/teacher/exam-workflow/${moduleId}`} className="ghost-button !border-white/20 !bg-white/10 !text-white hover:!bg-white/20">
+                            Back to workflow
+                        </Link>
+                    ) : null}
+                </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-4">
-                <StatusStep
-                    done={isProcessing || isDone}
-                    active={isQueued}
-                    label="Job queued — waiting for worker"
-                    icon={<FiClock />}
-                />
-                <StatusStep
-                    done={isDone}
-                    active={isProcessing}
-                    label="LLM generating questions…"
-                    icon={<FiLoader className={isProcessing ? 'animate-spin' : ''} />}
-                />
-                <StatusStep
-                    done={isDone}
-                    active={false}
-                    label="Validating & saving exam draft"
-                    icon={<FiCheckCircle />}
-                />
-
-                {isFailed && (
-                    <div className="flex items-start gap-3 p-4 bg-red-50 rounded-2xl border border-red-200 mt-4">
-                        <FiAlertCircle className="text-red-500 text-xl flex-shrink-0 mt-0.5" />
-                        <div>
-                            <p className="font-bold text-red-700">Generation Failed</p>
-                            <p className="text-sm text-red-600 mt-1">{error}</p>
-                            <button onClick={startGeneration} className="mt-3 bg-red-600 text-white text-sm px-5 py-2 rounded-xl font-bold hover:bg-red-700 transition">
-                                Retry
-                            </button>
+                {workflowSummary ? (
+                    <div className="mt-6 grid gap-3 md:grid-cols-3">
+                        <div className="rounded-[24px] border border-white/15 bg-white/10 p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Module</p>
+                            <p className="mt-2 text-sm font-semibold text-white">{workflowSummary.moduleName}</p>
+                        </div>
+                        <div className="rounded-[24px] border border-white/15 bg-white/10 p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Questions</p>
+                            <p className="mt-2 text-sm font-semibold text-white">{workflowSummary.totalQuestions}</p>
+                        </div>
+                        <div className="rounded-[24px] border border-white/15 bg-white/10 p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Selected topics</p>
+                            <p className="mt-2 text-sm font-semibold text-white">{workflowSummary.selectedTopicCount}</p>
                         </div>
                     </div>
-                )}
+                ) : null}
+            </header>
 
-                {isDone && resultExamId && (
-                    <div className="flex flex-col items-center gap-4 p-6 bg-emerald-50 rounded-2xl border border-emerald-200 mt-4 text-center">
-                        <FiCheckCircle className="text-5xl text-emerald-500" />
-                        <p className="font-bold text-emerald-800 text-lg">Exam Generated Successfully!</p>
-                        <p className="text-sm text-emerald-600">Review and edit your exam before publishing.</p>
+            <div className="surface-card p-8">
+                <div className="space-y-4">
+                    <StatusStep
+                        done={isProcessing || isDone}
+                        active={isQueued}
+                        label="Job queued and waiting for the worker"
+                        icon={<FiClock />}
+                    />
+                    <StatusStep
+                        done={isDone}
+                        active={isProcessing}
+                        label="Generating questions and assembling the draft"
+                        icon={<FiLoader className={isProcessing ? 'animate-spin' : ''} />}
+                    />
+                    <StatusStep
+                        done={isDone}
+                        active={false}
+                        label="Saving the draft and preparing review"
+                        icon={<FiCheckCircle />}
+                    />
+                </div>
+
+                {isFailed ? (
+                    <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 p-5">
+                        <div className="flex items-start gap-3">
+                            <FiAlertCircle className="mt-0.5 text-xl text-rose-500" />
+                            <div className="flex-1">
+                                <p className="font-bold text-rose-700">Generation failed</p>
+                                <p className="mt-1 text-sm text-rose-600">{error}</p>
+                                <div className="mt-4 grid gap-3 lg:grid-cols-[1fr,auto] lg:items-end">
+                                    <div>
+                                        <label className="label-text !text-rose-700">LLM for retry</label>
+                                        <select
+                                            className="select-field !border-rose-200 !bg-white"
+                                            value={selectedExamProviderConfigId}
+                                            onChange={(event) => setSelectedExamProviderConfigId(event.target.value)}
+                                            disabled={loadingAiOptions}
+                                        >
+                                            <option value="">System default</option>
+                                            {aiOptions.llmProviders.map((provider) => (
+                                                <option key={`retry-exam-${provider.id}`} value={provider.id}>
+                                                    {provider.label} | {provider.model_name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="mt-2 text-xs font-medium text-rose-600">
+                                            {selectedExamProvider
+                                                ? `${selectedExamProvider.provider_name} | ${selectedExamProvider.model_name}`
+                                                : 'The retry will use the system default LLM.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => startGeneration({ includeProviderOverride: true })}
+                                        className="danger-button !rounded-xl !px-5 !py-3"
+                                    >
+                                        <FiRefreshCw />
+                                        <span>Retry generation</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+
+                {isDone && resultExamId ? (
+                    <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 p-6 text-center">
+                        <FiCheckCircle className="mx-auto text-5xl text-emerald-500" />
+                        <p className="mt-4 text-xl font-extrabold text-emerald-800">Draft created successfully</p>
+                        <p className="mt-2 text-sm text-emerald-700">Continue to Step 6 to review questions, correct answers, and marks before publishing.</p>
                         <button
-                            onClick={() => navigate(`/teacher/ai-exam-review/${resultExamId}`)}
-                            className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                            type="button"
+                            onClick={() => navigate(`/teacher/ai-exam-review/${resultExamId}`, {
+                                state: {
+                                    moduleId,
+                                    fromWorkflow: true,
+                                },
+                            })}
+                            className="secondary-button mt-5"
                         >
-                            Review & Edit Exam →
+                            <span>Open review step</span>
                         </button>
                     </div>
-                )}
+                ) : null}
 
-                {!isFailed && !isDone && (
-                    <div className="text-center mt-4 text-sm text-slate-400">
-                        <p>This may take 30–90 seconds depending on the exam size.</p>
-                        <p className="mt-1 font-mono text-xs">Job ID: {jobId || '…'}</p>
+                {!isFailed && !isDone ? (
+                    <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                        <p>This usually takes between 30 and 90 seconds depending on the requested exam size.</p>
+                        <p className="mt-1 font-mono text-xs text-slate-400">Job ID: {jobId || 'pending'}</p>
                     </div>
-                )}
+                ) : null}
             </div>
         </div>
     );

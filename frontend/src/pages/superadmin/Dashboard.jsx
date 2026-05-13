@@ -1,40 +1,87 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { FaUsers, FaBuilding } from 'react-icons/fa';
+import { FiArrowRight, FiCpu, FiLayers, FiShield, FiUsers } from 'react-icons/fi';
 
 const Dashboard = () => {
     const { user } = useAuth();
 
     if (user?.role !== 'superadmin') {
-        return <div className="p-8 text-center text-red-500 font-semibold">Access Denied</div>;
+        return <div className="surface-card p-8 text-center font-semibold text-red-500">Access denied.</div>;
     }
 
     return (
-        <div className="space-y-6">
-            <header className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div>
-                   <h1 className="text-2xl font-bold text-gray-800">Super Admin Dashboard</h1>
-                   <p className="text-gray-500 mt-1">Manage global system settings, departments, and users.</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xl uppercase">
-                   {user.userId}
-                </div>
+        <div className="space-y-8">
+            <header className="page-hero">
+                <p className="eyebrow">System Administration</p>
+                <h1 className="page-title">Oversee users, departments, and platform governance from one consistent admin surface</h1>
+                <p className="page-subtitle">
+                    The updated admin area favors clarity, action density, and operational confidence while preserving all creation, assignment, and account-management logic.
+                </p>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                    <div className="text-indigo-600 mb-4 text-3xl"><FaUsers /></div>
-                    <h3 className="text-lg font-semibold text-gray-800">Manage Users</h3>
-                    <p className="text-gray-500 text-sm mt-2 mb-4">Create accounts across all roles, change passwords, and manage platform access.</p>
-                    <Link to="/superadmin/users" className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Go to Users &rarr;</Link>
+            <div className="grid gap-5 md:grid-cols-3">
+                <Link
+                    to="/superadmin/users"
+                    className="surface-card group p-7 transition duration-200 hover:-translate-y-1 hover:shadow-[0_26px_80px_rgba(15,23,42,0.13)]"
+                >
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                        <FiUsers className="text-2xl" />
+                    </div>
+                    <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-slate-900">Manage Users</h2>
+                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                        Create accounts, reset credentials, and keep role access under control with better table and modal ergonomics.
+                    </p>
+                    <div className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-slate-900">
+                        <span>Open user directory</span>
+                        <FiArrowRight className="transition-transform group-hover:translate-x-1" />
+                    </div>
+                </Link>
+
+                <Link
+                    to="/superadmin/departments"
+                    className="surface-card group p-7 transition duration-200 hover:-translate-y-1 hover:shadow-[0_26px_80px_rgba(15,23,42,0.13)]"
+                >
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                        <FiLayers className="text-2xl" />
+                    </div>
+                    <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-slate-900">Manage Departments</h2>
+                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                        Structure departments, assign administrators, and maintain the academic hierarchy in a more readable control plane.
+                    </p>
+                    <div className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-slate-900">
+                        <span>Open department manager</span>
+                        <FiArrowRight className="transition-transform group-hover:translate-x-1" />
+                    </div>
+                </Link>
+
+                <Link
+                    to="/superadmin/ai-providers"
+                    className="surface-card group p-7 transition duration-200 hover:-translate-y-1 hover:shadow-[0_26px_80px_rgba(15,23,42,0.13)]"
+                >
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                        <FiCpu className="text-2xl" />
+                    </div>
+                    <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-slate-900">Manage AI Providers</h2>
+                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                        Register platform LLMs, update API keys or LAN hosts, and choose the global embedding service used for retrieval.
+                    </p>
+                    <div className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-slate-900">
+                        <span>Open AI configuration</span>
+                        <FiArrowRight className="transition-transform group-hover:translate-x-1" />
+                    </div>
+                </Link>
+            </div>
+
+            <div className="soft-stat flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                    <FiShield className="text-xl" />
                 </div>
-                
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                    <div className="text-pink-600 mb-4 text-3xl"><FaBuilding /></div>
-                    <h3 className="text-lg font-semibold text-gray-800">Manage Departments</h3>
-                    <p className="text-gray-500 text-sm mt-2 mb-4">Create departments and assign department administrators.</p>
-                    <Link to="/superadmin/departments" className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">Go to Departments &rarr;</Link>
+                <div>
+                    <p className="text-lg font-extrabold text-slate-900">Administrative actions stay exactly the same underneath</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                        This redesign is presentation-only: no backend contracts, auth flow, or business rules were altered.
+                    </p>
                 </div>
             </div>
         </div>

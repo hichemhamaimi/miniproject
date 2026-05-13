@@ -1,0 +1,6 @@
+node_modules
+npm-debug.log
+debug_log.txt
+storage
+tests
+.env

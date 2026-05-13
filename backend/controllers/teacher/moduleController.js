@@ -1,4 +1,7 @@
 const pool = require('../../config/dbConnect');
+const Material = require('../../models/Material');
+const MaterialMindmap = require('../../models/MaterialMindmap');
+const { getExamReadiness } = require('../../services/examStatisticsService');
 
 // 1. Get all modules assigned to the logged-in teacher
 const getTeacherModules = async (req, res) => {
@@ -98,7 +101,7 @@ const getModuleExams = async (req, res) => {
         }
 
         const query = `
-            SELECT e.id, e.title, e.creation_date, e.status, e.duration_minutes, e.start_time, e.end_time,
+            SELECT e.id, e.title, e.creation_date, e.status, e.duration_minutes, e.start_time, e.end_time, e.require_seb,
                    u.id as creator_id, u.name as creator_name, u.lastname as creator_lastname
             FROM exams e
             JOIN users u ON e.teacher_id = u.id
@@ -107,16 +110,81 @@ const getModuleExams = async (req, res) => {
         `;
 
         const [exams] = await pool.query(query, [moduleId]);
+        const examsWithReadiness = await Promise.all(exams.map(async (exam) => {
+            const readiness = await getExamReadiness(exam.id, teacher_id);
+            return {
+                ...exam,
+                status: readiness?.exam?.status || exam.status,
+                statisticsReadiness: readiness ? {
+                    ready: readiness.ready,
+                    examEnded: readiness.examEnded,
+                    allSubmitted: readiness.allSubmitted,
+                    eligibleStudents: readiness.eligibleStudents,
+                    submittedStudents: readiness.submittedStudents,
+                    pendingStudents: readiness.pendingStudents,
+                } : null,
+            };
+        }));
 
-        res.status(200).json(exams);
+        res.status(200).json(examsWithReadiness);
     } catch (error) {
         console.error("Error fetching module exams:", error);
         res.status(500).json({ message: "Server error fetching exams." });
     }
 };
 
+const getModuleWorkflowData = async (req, res) => {
+    try {
+        const teacher_id = req.userId;
+        const { moduleId } = req.params;
+
+        const [moduleCheck] = await pool.query(
+            `SELECT m.id, m.name, m.abbreviation
+             FROM modules m
+             WHERE m.id = ? AND m.responsable_teacher_id = ?`,
+            [moduleId, teacher_id]
+        );
+
+        if (moduleCheck.length === 0) {
+            return res.status(403).json({ message: "You are not authorized to manage this module." });
+        }
+
+        const [groups] = await pool.query(
+            `SELECT sg.id, sg.name, sg.year
+             FROM student_groups sg
+             JOIN group_modules gm ON gm.group_id = sg.id
+             WHERE gm.module_id = ?
+             ORDER BY sg.year, sg.name`,
+            [moduleId]
+        );
+
+        const materials = await Material.find({
+            moduleId: Number(moduleId),
+            $or: [
+                { teacherId: req.userId },
+                { visibility: 'module', moduleId: Number(moduleId) },
+            ]
+        }).sort({ updatedAt: -1 }).lean();
+        const mindmaps = await MaterialMindmap.find({ moduleId: Number(moduleId) }).lean();
+        const mindmapByMaterialId = new Map(mindmaps.map((mindmap) => [String(mindmap.materialId), mindmap]));
+
+        res.status(200).json({
+            module: moduleCheck[0],
+            groups,
+            materials: materials.map((material) => ({
+                ...material,
+                mindmap: mindmapByMaterialId.get(String(material._id)) || null,
+            })),
+        });
+    } catch (error) {
+        console.error("Error fetching module workflow data:", error);
+        res.status(500).json({ message: "Server error fetching workflow data." });
+    }
+};
+
 module.exports = {
     getTeacherModules,
     getModuleStudents,
-    getModuleExams
+    getModuleExams,
+    getModuleWorkflowData,
 };

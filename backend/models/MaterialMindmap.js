@@ -9,6 +9,7 @@ const conceptSchema = new Schema({
 const mindmapSchema = new Schema({
     materialId: { type: Schema.Types.ObjectId, ref: 'Material', required: true },
     teacherId: { type: Number, required: true },
+    moduleId: { type: Number, required: true, index: true },
     title: { type: String, required: true },
     concepts: { type: [Schema.Types.Mixed], default: [] },
 }, { timestamps: true });

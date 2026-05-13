@@ -2,9 +2,12 @@ const mysql2 = require('mysql2');
 
 const pool = mysql2.createPool({
   host: process.env.DBHOST,
+  port: Number.parseInt(process.env.DBPORT || '3306', 10),
   user: process.env.DBUSER,
   password: process.env.DBPASSWORD,
   database: process.env.DBNAME,
+  waitForConnections: true,
+  connectionLimit: Number.parseInt(process.env.DB_CONNECTION_LIMIT || '10', 10),
 }).promise();
 
 async function checkDatabaseConnection() {

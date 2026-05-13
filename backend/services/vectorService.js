@@ -3,19 +3,29 @@ const { v4: uuidv4 } = require('uuid');
 const config = require('../config/system.config');
 require('dotenv').config();
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientQdrantError = (error) => {
+    const code = error?.code || error?.cause?.code;
+    return ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'UND_ERR_SOCKET'].includes(code)
+        || error?.message === 'fetch failed';
+};
+
 class VectorService {
     constructor() {
         this.collectionName = config.vectorDB.collection || "materials";
         this.initialized = false;
+        this.initializationPromise = null;
         
         const host = process.env.QDRANT_HOST || config.vectorDB.host || 'http://localhost:6333';
         console.log(`[VectorService] Connecting to Qdrant at ${host}`);
         
         this.client = new QdrantClient({ url: host });
-        // NOTE: If Gemini text-embedding-004 is used, the vector size is 768. 
-        // If Xenova/all-MiniLM-L6-v2 is used, vector size is 384.
-        // We will default to 768 since we changed to Gemini as the main provider.
-        this.vectorSize = process.env.EMBEDDING_PROVIDER === 'transformers' ? 384 : 768; 
+        this.vectorSize = Number(
+            process.env.EMBEDDING_VECTOR_SIZE
+            || config.embedding.vectorSize
+            || (process.env.EMBEDDING_PROVIDER === 'transformers' ? 384 : 768)
+        );
     }
 
     /**
@@ -24,26 +34,89 @@ class VectorService {
     async ensureCollectionExists() {
         if (this.initialized) return;
 
-        try {
-            const collections = await this.client.getCollections();
-            const exists = collections.collections.some(c => c.name === this.collectionName);
+        if (!this.initializationPromise) {
+            this.initializationPromise = this.initializeCollection().finally(() => {
+                this.initializationPromise = null;
+            });
+        }
 
-            if (!exists) {
-                console.log(`[VectorService] Collection ${this.collectionName} does not exist. Creating...`);
-                await this.client.createCollection(this.collectionName, {
-                    vectors: {
-                        size: this.vectorSize,
-                        distance: 'Cosine'
+        await this.initializationPromise;
+    }
+
+    async initializeCollection() {
+        try {
+            await this.withQdrantRetry(async () => {
+                const collections = await this.client.getCollections();
+                const exists = collections.collections.some(c => c.name === this.collectionName);
+
+                if (!exists) {
+                    console.log(`[VectorService] Collection ${this.collectionName} does not exist. Creating...`);
+                    await this.client.createCollection(this.collectionName, {
+                        vectors: {
+                            size: this.vectorSize,
+                            distance: 'Cosine'
+                        }
+                    });
+                    console.log(`[VectorService] Collection ${this.collectionName} created. (Size: ${this.vectorSize})`);
+                } else {
+                    const collection = await this.client.getCollection(this.collectionName);
+                    const configuredSize = collection?.config?.params?.vectors?.size;
+                    if (typeof configuredSize === 'number' && configuredSize !== this.vectorSize) {
+                        console.warn(`[VectorService] Using existing collection vector size ${configuredSize} instead of configured size ${this.vectorSize}.`);
+                        this.vectorSize = configuredSize;
                     }
-                });
-                console.log(`[VectorService] Collection ${this.collectionName} created. (Size: ${this.vectorSize})`);
-            }
+                }
+            }, 'ensure collection');
             
             this.initialized = true;
         } catch (error) {
              console.error("[VectorService] Error ensuring collection exists:", error);
              throw error;
         }
+    }
+
+    async withQdrantRetry(operation, label) {
+        const attempts = Number(process.env.QDRANT_RETRY_ATTEMPTS || 3);
+        const retryDelayMs = Number(process.env.QDRANT_RETRY_DELAY_MS || 1000);
+
+        for (let attempt = 1; attempt <= attempts; attempt += 1) {
+            try {
+                return await operation();
+            } catch (error) {
+                if (!isTransientQdrantError(error) || attempt === attempts) {
+                    throw error;
+                }
+
+                console.warn(
+                    `[VectorService] Transient Qdrant error during ${label}; retrying ${attempt}/${attempts}.`,
+                );
+                await sleep(retryDelayMs * attempt);
+            }
+        }
+    }
+
+    normalizeVector(values = []) {
+        if (!Array.isArray(values) || values.length === 0) {
+            return [];
+        }
+
+        if (!this.vectorSize) {
+            return values;
+        }
+
+        if (values.length === this.vectorSize) {
+            return values;
+        }
+
+        if (values.length > this.vectorSize) {
+            return values.slice(0, this.vectorSize);
+        }
+
+        return [...values, ...Array.from({ length: this.vectorSize - values.length }, () => 0)];
+    }
+
+    getVectorSize() {
+        return this.vectorSize;
     }
 
     /**
@@ -57,7 +130,7 @@ class VectorService {
 
         const points = chunksData.map(c => ({
             id: uuidv4(),
-            vector: c.vector,
+            vector: this.normalizeVector(c.vector),
             payload: c.payload
         }));
 
@@ -86,7 +159,7 @@ class VectorService {
 
         try {
             const searchParams = {
-                vector: queryVector,
+                vector: this.normalizeVector(queryVector),
                 limit: topK,
                 with_payload: true,
             };
@@ -163,6 +236,7 @@ class VectorService {
               console.log(`[VectorService] Deleted chunks for materialId ${materialId}`);
          } catch(error) {
               console.error("[VectorService] Error deleting chunks:", error);
+              throw error;
          }
     }
 }
