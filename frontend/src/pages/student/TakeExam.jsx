@@ -12,6 +12,7 @@ const MANUAL_SUBMIT_TIMEOUT_MS = 60_000;
 
 const createSubmitAttemptId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const getSebExitPath = (examId) => `/student/exams/${examId}/seb-exit`;
 
 const getStoredSebToken = (examId) => {
     const queryToken = new URLSearchParams(window.location.search).get('sebToken');
@@ -204,6 +205,24 @@ const TakeExam = () => {
         }
     }, [examId, initializeExamSession]);
 
+    const finishExamSession = useCallback((message) => {
+        if (socketRef.current) {
+            socketRef.current.disconnect();
+        }
+
+        window.sessionStorage.removeItem(`sebToken:${examId}`);
+        window.sessionStorage.removeItem(`sebAuthTransfer:${examId}`);
+
+        if (isProtectedEntry) {
+            setSubmitMessage(`${message} Unlocking Safe Exam Browser...`);
+            window.location.assign(getSebExitPath(examId));
+            return;
+        }
+
+        alert(message);
+        navigate('/student/dashboard?seb_quit=true');
+    }, [examId, isProtectedEntry, navigate]);
+
     const submitExamPayload = useCallback(async (autoSubmit = false, attempt = 1) => {
         if (submittedRef.current) return;
         if (submittingRef.current) return;
@@ -248,6 +267,7 @@ const TakeExam = () => {
                 {
                     headers: {
                         ...(autoSubmit ? { 'x-exam-auto-submit': 'true' } : {}),
+                        ...(sebTokenRef.current ? { 'x-seb-access-token': sebTokenRef.current } : {}),
                         'x-submit-attempt-id': submitAttemptId,
                     },
                     timeout: autoSubmit ? AUTO_SUBMIT_TIMEOUT_MS : MANUAL_SUBMIT_TIMEOUT_MS,
@@ -256,16 +276,9 @@ const TakeExam = () => {
 
             submittedRef.current = true;
             clearAutoSubmitRetryTimers();
-            if (autoSubmit) {
-                alert('Time is up! Your answers have been automatically submitted.');
-            } else {
-                alert('Exam submitted successfully!');
-            }
-
-            if (socketRef.current) {
-                socketRef.current.disconnect();
-            }
-            navigate('/student/dashboard?seb_quit=true');
+            finishExamSession(autoSubmit
+                ? 'Time is up! Your answers have been automatically submitted.'
+                : 'Exam submitted successfully!');
         } catch (err) {
             console.error('[ExamSubmit] Submission failed', {
                 submitAttemptId,
@@ -282,8 +295,7 @@ const TakeExam = () => {
             const serverAttemptId = err.response?.data?.submitAttemptId || submitAttemptId;
             if (status === 409 || serverMessage.toLowerCase().includes('already submitted')) {
                 submittedRef.current = true;
-                if (socketRef.current) socketRef.current.disconnect();
-                navigate('/student/dashboard?seb_quit=true');
+                finishExamSession('This exam session was already submitted.');
                 return;
             }
 
@@ -312,7 +324,7 @@ const TakeExam = () => {
             submittingRef.current = false;
             setSubmitting(false);
         }
-    }, [clearAutoSubmitRetryTimers, examId, navigate, remainingTime]);
+    }, [clearAutoSubmitRetryTimers, examId, finishExamSession, remainingTime]);
 
     useEffect(() => {
         lockAndAutoSubmitRef.current = () => {
@@ -566,15 +578,12 @@ const TakeExam = () => {
                     <ul className="mt-3 space-y-2 text-sm text-slate-600">
                         <li>Make sure your connection is stable.</li>
                         <li>Keep the Safe Exam Browser window open for the whole session.</li>
-                        <li>You can still exit SEB manually for now while we finish the full lockdown behavior.</li>
+                        <li>Once started, SEB unlocks only after a successful submission or when the timer expires and auto-submit completes.</li>
                     </ul>
                     <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                         <button onClick={startExamSession} disabled={starting || authBootstrapPending} className="action-button">
                             <FiPlayCircle />
                             <span>{authBootstrapPending ? 'Restoring session...' : starting ? 'Starting...' : 'Start Exam'}</span>
-                        </button>
-                        <button onClick={() => navigate('/student/dashboard?seb_quit=true')} className="ghost-button">
-                            Cancel
                         </button>
                     </div>
                 </div>

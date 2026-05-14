@@ -29,6 +29,7 @@ import DeptAdminModules from './pages/departmentadmin/Modules.jsx'
 import StudentDashboard from './pages/student/Dashboard.jsx'
 import TakeExam from './pages/student/TakeExam.jsx'
 import StudentResults from './pages/student/StudentResults.jsx'
+import SebExit from './pages/student/SebExit.jsx'
 import ExamStatistics from './pages/teacher/ExamStatistics.jsx'
 import { RequireRole } from './components/auth/RequireAuth.jsx'
 
@@ -71,6 +72,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
              <Route element={<RequireRole allowedRoles={['student']} allowSebBootstrap />}>
                <Route path="student/dashboard" element={<StudentDashboard />} />
                <Route path="student/exams/:examId" element={<TakeExam />} />
+               <Route path="student/exams/:examId/seb-exit" element={<SebExit />} />
                <Route path="student/results" element={<StudentResults />} />
              </Route>
           </Route>

@@ -37,7 +37,7 @@ const verifySEB = async (req, res, next) => {
             || req.headers['x-safe-exam-browser-token']
             || req.query?.sebToken;
 
-        if (!sebToken && !sebSignalDetected) {
+        if (!sebSignalDetected) {
             return res.status(403).json({
                 message: 'Access denied: this exam must be started from Safe Exam Browser.',
                 code: 'SEB_REQUIRED',

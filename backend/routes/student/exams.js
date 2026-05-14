@@ -17,7 +17,7 @@ router.get('/:id/seb', examTakingController.downloadSebFile);
 // Enter exam room (Applies SEB validation)
 router.post('/:id/start', verifySEB, examTakingController.enterExam);
 
-// Submit exam answers
-router.post('/:id/submit', examTakingController.submitExam);
+// Submit exam answers (SEB validation is re-applied for protected exams)
+router.post('/:id/submit', verifySEB, examTakingController.submitExam);
 
 module.exports = router;

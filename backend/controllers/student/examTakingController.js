@@ -1,4 +1,5 @@
 const pool = require('../../config/dbConnect');
+const crypto = require('crypto');
 const Exam = require('../../models/Exam');
 const gradingService = require('../../services/gradingService');
 const { createCorrectionDocument } = require('../../services/correctionDocumentService');
@@ -22,6 +23,22 @@ const escapeXml = (value) => String(value ?? '')
     .replace(/'/g, '&apos;');
 
 const createSubmitAttemptId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const createUnknownSebQuitPasswordHash = () => crypto
+    .createHash('sha256')
+    .update(crypto.randomBytes(32).toString('hex'))
+    .digest('hex');
+
+const buildSebUrlRule = (expression, { action = 1, regex = false } = {}) => `
+        <dict>
+            <key>active</key>
+            <true/>
+            <key>action</key>
+            <integer>${action}</integer>
+            <key>expression</key>
+            <string>${escapeXml(expression)}</string>
+            <key>regex</key>
+            ${regex ? '<true/>' : '<false/>'}
+        </dict>`;
 
 const logSubmit = (attemptId, event, payload = {}) => {
     devLogger.log('EXAM_SUBMIT', event, {
@@ -530,7 +547,12 @@ const downloadSebFile = async (req, res) => {
             role,
         });
         const startUrl = `${runtimeConfig.frontendUrl}/student/exams/${id}?sebToken=${encodeURIComponent(sebToken)}&authTransfer=${encodeURIComponent(sessionTransferToken)}`;
-        const quitUrl = `${runtimeConfig.frontendUrl}/student/dashboard?seb_quit=true`;
+        const quitUrl = `${runtimeConfig.frontendUrl}/student/exams/${id}/seb-exit`;
+        const unknownQuitPasswordHash = createUnknownSebQuitPasswordHash();
+        const urlFilterRules = [
+            buildSebUrlRule(`${runtimeConfig.frontendUrl}/*`),
+            buildSebUrlRule(`${runtimeConfig.publicApiUrl}/*`),
+        ].join('');
 
         const sebConfig = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -544,16 +566,93 @@ const downloadSebFile = async (req, res) => {
     <string></string>
     <key>allowQuit</key>
     <true/>
-    <key>enablePrintScreen</key>
-    <true/>
-    <key>allowScreenCapture</key>
-    <true/>
-    <key>allowWindowCapture</key>
-    <true/>
-    <key>blockScreenShotsLegacy</key>
+    <key>showQuitButton</key>
     <false/>
     <key>quitURL</key>
     <string>${escapeXml(quitUrl)}</string>
+    <key>quitURLConfirm</key>
+    <false/>
+    <key>hashedQuitPassword</key>
+    <string>${unknownQuitPasswordHash}</string>
+    <key>ignoreQuitPassword</key>
+    <false/>
+    <key>allowBrowsingBackForward</key>
+    <false/>
+    <key>browserWindowAllowReload</key>
+    <false/>
+    <key>newBrowserWindowAllowReload</key>
+    <false/>
+    <key>showReloadButton</key>
+    <false/>
+    <key>enableBrowserWindowToolbar</key>
+    <false/>
+    <key>hideBrowserWindowToolbar</key>
+    <true/>
+    <key>browserWindowShowURL</key>
+    <integer>0</integer>
+    <key>showTaskBar</key>
+    <false/>
+    <key>showMenuBar</key>
+    <false/>
+    <key>allowSwitchToApplications</key>
+    <false/>
+    <key>enableAppSwitcherCheck</key>
+    <true/>
+    <key>hookKeys</key>
+    <true/>
+    <key>ignoreExitKeys</key>
+    <true/>
+    <key>enableAltEsc</key>
+    <false/>
+    <key>enableAltF4</key>
+    <false/>
+    <key>enableAltTab</key>
+    <false/>
+    <key>enableCtrlEsc</key>
+    <false/>
+    <key>enableEsc</key>
+    <false/>
+    <key>enableStartMenu</key>
+    <false/>
+    <key>enableRightMouse</key>
+    <false/>
+    <key>enablePrintScreen</key>
+    <false/>
+    <key>allowScreenCapture</key>
+    <false/>
+    <key>allowWindowCapture</key>
+    <false/>
+    <key>blockScreenShotsLegacy</key>
+    <true/>
+    <key>allowScreenSharing</key>
+    <false/>
+    <key>allowDisplayMirroring</key>
+    <false/>
+    <key>allowAirPlay</key>
+    <false/>
+    <key>allowVideoCapture</key>
+    <false/>
+    <key>allowDictation</key>
+    <false/>
+    <key>allowDictionaryLookup</key>
+    <false/>
+    <key>allowSpellCheck</key>
+    <false/>
+    <key>downloadAndOpenSebConfig</key>
+    <false/>
+    <key>downloadPDFFiles</key>
+    <false/>
+    <key>openDownloads</key>
+    <false/>
+    <key>URLFilterEnable</key>
+    <true/>
+    <key>URLFilterEnableContentFilter</key>
+    <true/>
+    <key>URLFilterRules</key>
+    <array>${urlFilterRules}
+    </array>
+    <key>sendBrowserExamKey</key>
+    <true/>
 </dict>
 </plist>`;
 
