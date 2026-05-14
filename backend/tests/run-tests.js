@@ -4,6 +4,7 @@ const runtimeConfigPath = require.resolve('../config/runtime.config');
 const sebAccessPath = require.resolve('../utils/sebAccess');
 const { AUTO_SUBMIT_GRACE_MS, canFinalizeExpiredSession } = require('../utils/examSession');
 const { gradeExam } = require('../services/gradingService');
+const { hashPassword, verifyPassword } = require('../utils/auth');
 
 const loadSebAccess = () => {
     delete require.cache[sebAccessPath];
@@ -119,23 +120,46 @@ const tests = [
             assert.equal(result.gradedQuestions[0].studentAnswer.length, 0);
         },
     },
+    {
+        name: 'password verifier accepts valid bcrypt hashes',
+        async run() {
+            const hash = await hashPassword('correct-password');
+            const result = await verifyPassword('correct-password', hash);
+
+            assert.equal(result.isValid, true);
+            assert.equal(result.shouldUpgradeHash, false);
+        },
+    },
+    {
+        name: 'password verifier upgrades legacy bcrypt hashes missing algorithm prefix',
+        async run() {
+            const hash = await hashPassword('legacy-password');
+            const legacyHash = hash.replace(/^\$2[abxy]\$/, '$');
+            const result = await verifyPassword('legacy-password', legacyHash);
+
+            assert.equal(result.isValid, true);
+            assert.equal(result.shouldUpgradeHash, true);
+        },
+    },
 ];
 
-let failed = false;
+(async () => {
+    let failed = false;
 
-tests.forEach((testCase) => {
-    try {
-        testCase.run();
-        console.log(`PASS ${testCase.name}`);
-    } catch (error) {
-        failed = true;
-        console.error(`FAIL ${testCase.name}`);
-        console.error(error);
+    for (const testCase of tests) {
+        try {
+            await testCase.run();
+            console.log(`PASS ${testCase.name}`);
+        } catch (error) {
+            failed = true;
+            console.error(`FAIL ${testCase.name}`);
+            console.error(error);
+        }
     }
-});
 
-if (failed) {
-    process.exitCode = 1;
-} else {
-    console.log(`All ${tests.length} backend checks passed.`);
-}
+    if (failed) {
+        process.exitCode = 1;
+    } else {
+        console.log(`All ${tests.length} backend checks passed.`);
+    }
+})();

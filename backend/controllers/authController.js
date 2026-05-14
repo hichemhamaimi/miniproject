@@ -23,11 +23,7 @@ const login = async (req, res, next) => {
         }
 
         const foundUser = users[0];
-        
-        /*
-
         const passwordCheck = await verifyPassword(password, foundUser.password_hash);
-
 
         if (!passwordCheck.isValid) {
             throw new AppError(401, "Invalid username or password.");
@@ -37,10 +33,6 @@ const login = async (req, res, next) => {
             const upgradedHash = await hashPassword(password);
             await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [upgradedHash, foundUser.id]);
         }
-
-        */
-
-        console.log("logged in")
 
         const responsePayload = await issueAuthSession({
             res,
